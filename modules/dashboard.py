@@ -10,6 +10,7 @@ import seaborn as sns
 from matplotlib.gridspec import GridSpec
 import matplotlib.patches as mpatches
 from typing import Dict, Optional
+import os
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -24,6 +25,9 @@ class ExecutiveDashboard:
     def __init__(self, analyzer):
         """Initialize with a BusinessAnalyzer instance"""
         self.analyzer = analyzer
+        self.config = analyzer.config
+        self.run_dt = analyzer.run_dt
+        self.run_time = analyzer.run_time
         self.colors = {
             'primary': '#2E86AB',
             'success': '#52B788',
@@ -32,8 +36,9 @@ class ExecutiveDashboard:
             'dark': '#264653',
             'light': '#F1FAEE'
         }
+        self.fig = None
     
-    def create_full_dashboard(self, figsize=(20, 12), save_path=None):
+    def create_full_dashboard(self, figsize=(20, 12)):
         """Create comprehensive executive dashboard"""
         fig = plt.figure(figsize=figsize, facecolor='white')
         gs = GridSpec(3, 4, figure=fig, hspace=0.3, wspace=0.3)
@@ -73,11 +78,34 @@ class ExecutiveDashboard:
                 ha='right', va='bottom', fontsize=8, style='italic', color='gray')
         
         plt.tight_layout()
+
+        # Store the figure in the instance for later use
+        self.fig = fig
         
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        
+        # If no save_path was provided, return the Figure so notebooks can render it
         return fig
+    
+    def save_full_dashboard(self, save_path: Optional[str] = None):
+        """Save the previously created dashboard to a file"""
+        if self.fig is None:
+            raise ValueError("Dashboard figure not found. Please create the dashboard first using create_full_dashboard().")
+        
+        # Get save path if not defined
+        if not save_path:
+            output_dir = self.config['output_path'] + self.config['project_name']
+            if not os.path.exists(output_dir):
+                print(f"📂 Creating output directory: {output_dir}")
+                os.makedirs(output_dir, exist_ok=True)
+            save_path = output_dir + f'/executive_dashboard_{self.run_dt}_{self.run_time}.png'
+        
+        # Save the figure
+        self.fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"✅ Dashboard exported to '{save_path}'")
+        # Close the figure after saving to avoid automatic re-display in notebooks
+        # and return None so notebook cells that call this function won't render
+        # the figure when the intent was only to save to disk.
+        plt.close(self.fig)
+        return None
     
     def _create_kpi_cards(self, fig, gridspec, kpis):
         """Create KPI metric cards"""

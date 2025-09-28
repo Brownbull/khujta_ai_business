@@ -3,13 +3,14 @@ Business Analytics Core Module
 Main analytics engine for executive dashboards
 """
 
+from matplotlib.pylab import pareto
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import warnings
+import os
 warnings.filterwarnings('ignore')
-
 
 class BusinessAnalyzer:
     """Main orchestrator for business analytics"""
@@ -22,12 +23,18 @@ class BusinessAnalyzer:
         self.inventory_status = None
         self.revenue_metrics = None
         
+        # Initialize run timestamp strings for unique file names
+        now = datetime.now()
+        self.run_dt = now.strftime('%Y%m%d') # YYYYMMDD, e.g. '20250927'
+        self.run_time = now.strftime('%H%M') # HHMM, e.g. '1435'
+
         if data_source:
             self.load_data(data_source)
     
     def _default_config(self) -> Dict:
         """Default configuration settings"""
         return {
+            'project_name': 'Buenacarne',
             'analysis_date': datetime.now(),
             'top_products_threshold': 0.2,
             'dead_stock_days': 30,
@@ -39,7 +46,8 @@ class BusinessAnalyzer:
             'revenue_col': 'total',
             'quantity_col': 'cantidad',
             'transaction_col': 'trans_id',
-            'cost_col': 'costo'
+            'cost_col': 'costo',
+            'output_path' : 'outputs/' 
         }
     
     def load_data(self, data_source: str):
@@ -155,7 +163,7 @@ class BusinessAnalyzer:
             'previous_period_revenue': previous_revenue
         }
     
-    def get_alerts(self) -> Dict:
+    def get_alerts(self, show: bool = False) -> Dict:
         """Get critical business alerts"""
         alerts = {
             'critical': [],
@@ -213,10 +221,31 @@ class BusinessAnalyzer:
                 'impact': 'Negative business trend',
                 'action': 'Urgent review of sales strategy needed'
             })
+            
+        # Display alerts
+        if show:
+            if alerts['critical']:
+                print("🔴 CRITICAL ACTIONS REQUIRED:")
+                for alert in alerts['critical']:
+                    print(f"\n  {alert['message']}")
+                    print(f"  Impact: {alert['impact']}")
+                    print(f"  ➔ Action: {alert['action']}")
+
+            if alerts['warning']:
+                print("\n🟡 WARNINGS:")
+                for alert in alerts['warning']:
+                    print(f"\n  {alert['message']}")
+                    print(f"  ➔ Action: {alert['action']}")
+
+            if alerts['success']:
+                print("\n🟢 SUCCESS INDICATORS:")
+                for alert in alerts['success']:
+                    print(f"\n  {alert['message']}")
+                    print(f"  ➔ Next Step: {alert['action']}")
         
         return alerts
-    
-    def get_pareto_insights(self) -> Dict:
+
+    def get_pareto_insights(self, show: bool = False) -> Dict:
         """Get 80/20 analysis insights"""
         if self.product_analysis is None:
             return {}
@@ -228,7 +257,7 @@ class BusinessAnalyzer:
         total_revenue = self.product_analysis[self.config['revenue_col']].sum()
         revenue_pct = (revenue_from_top / total_revenue) * 100
         
-        return {
+        pareto_return = {
             'top_products_count': twenty_percent,
             'top_products_pct': self.config['top_products_threshold'] * 100,
             'revenue_from_top': revenue_from_top,
@@ -236,8 +265,22 @@ class BusinessAnalyzer:
             'top_products_list': top_products.head(10).to_dict('records'),
             'concentration_level': 'High' if revenue_pct > 80 else 'Medium' if revenue_pct > 60 else 'Low'
         }
+        
+        # Display insights
+        if show:
+            print(f"🎯 TOP INSIGHT: Your top {pareto_return['top_products_count']} products "
+                f"({pareto_return['top_products_pct']:.0f}% of catalog) generate "
+                f"{pareto_return['revenue_from_top_pct']:.1f}% of revenue!")
+
+            print(f"\nConcentration Risk Level: {pareto_return['concentration_level']}")
+
+            print("\n📋 Top 5 Revenue Generators:")
+            for i, product in enumerate(pareto_return['top_products_list'][:5], 1):
+                print(f"  {i}. {product['glosa']}: {self.format_currency(product['total'])}")
+        
+        return pareto_return
     
-    def get_inventory_health(self) -> Dict:
+    def get_inventory_health(self, show: bool = False) -> Dict:
         """Get inventory health summary"""
         if self.inventory_status is None:
             return {}
@@ -247,14 +290,25 @@ class BusinessAnalyzer:
         # Calculate tied up cash if cost data available
         dead_stock = self.inventory_status[self.inventory_status['status'].isin(['Dead', 'Zombie'])]
         
-        return {
+        inventory_return = {
             'status_distribution': status_summary,
             'dead_stock_count': len(dead_stock),
             'healthy_stock_pct': (status_summary.get('Hot', 0) + status_summary.get('Active', 0)) / len(self.inventory_status) * 100,
             'at_risk_products': self.inventory_status[self.inventory_status['status'] == 'Slowing'].to_dict('records')[:5]
         }
+        
+        if show:
+            print(f"📊 Inventory Health Score: {inventory_return['healthy_stock_pct']:.0f}%")
+            print(f"\n⚠️ Dead Stock Alert: {inventory_return['dead_stock_count']} products")
+
+            if inventory_return['at_risk_products']:
+                print("\n🟡 Products At Risk (Slowing):")
+                for product in inventory_return['at_risk_products'][:3]:
+                    print(f"  • {product['glosa']}: {product['days_since_sale']} days since last sale")
+        
+        return inventory_return
     
-    def get_peak_times(self) -> Dict:
+    def get_peak_times(self, show: bool = False) -> Dict:
         """Get peak business times"""
         if self.data is None or 'hour' not in self.data.columns:
             return {}
@@ -271,13 +325,23 @@ class BusinessAnalyzer:
         else:
             peak_day = valley_day = 'N/A'
         
-        return {
+        peak_times_return = {
             'peak_hour': peak_hour,
             'peak_day': peak_day,
             'valley_day': valley_day,
             'hourly_distribution': hourly_revenue.to_dict(),
             'recommendation': f'Optimize staffing for {peak_day}s around {peak_hour}:00'
         }
+
+        # Display insights
+        if show:
+            print(f"⏰ Peak Performance Windows:")
+            print(f"  • Best Day: {peak_times_return['peak_day']}s")
+            print(f"  • Peak Hour: {peak_times_return['peak_hour']}:00")
+            print(f"  • Slowest Day: {peak_times_return['valley_day']}s")
+            print(f"\n💡 {peak_times_return['recommendation']}")
+
+        return peak_times_return
     
     def format_currency(self, value: float) -> str:
         """Format value as currency based on config"""
@@ -285,3 +349,31 @@ class BusinessAnalyzer:
             return f"$ {value:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
         else:
             return f"${value:,.2f}"
+        
+    def save_executive_summary(self, save_path: Optional[str] = None):
+        """Save executive summary to CSV"""
+        summary = {
+            'Date': self.config['analysis_date'],
+            'Total Revenue': self.get_kpis().get('total_revenue', 0),
+            'Revenue Growth %': self.get_kpis().get('revenue_growth', 0),
+            'Total Transactions': self.get_kpis().get('total_transactions', 0),
+            'Top 20% Revenue Share': self.get_pareto_insights().get('revenue_from_top_pct', 0),
+            'Dead Stock Count': self.get_inventory_health().get('dead_stock_count', 0),
+            'Inventory Health %': self.get_inventory_health().get('healthy_stock_pct', 0)
+        }
+        
+        # Convert to DataFrame for easy CSV export
+        summary_df = pd.DataFrame([summary])
+        
+        # Get save path if not defined
+        if not save_path:
+            output_dir = self.config['output_path'] + self.config['project_name']
+            if not os.path.exists(output_dir):
+                print(f"📂 Creating output directory: {output_dir}")
+                os.makedirs(output_dir, exist_ok=True)
+            save_path = output_dir + f'/executive_summary_{self.run_dt}_{self.run_time}.csv'
+
+        # Save to CSV
+        summary_df.to_csv(save_path, index=False)
+        print(f"✅ Executive summary exported to {save_path}")
+        

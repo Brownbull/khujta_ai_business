@@ -34,6 +34,8 @@ def complete_dashboard_workflow():
     
     # 2. CONFIGURATION
     config = {
+        'project_name': 'Buenacarne',       # Project name
+        
         # Data mapping
         'date_col': 'fecha',
         'product_col': 'producto',
@@ -48,7 +50,10 @@ def complete_dashboard_workflow():
         'top_products_threshold': 0.2,
         'dead_stock_days': 30,
         'currency_format': 'CLP',
-        'language': 'EN'
+        'language': 'EN',
+        
+        'output_path' : 'outputs/'          # Output directory
+        
     }
     
     # 3. INITIALIZE
@@ -62,9 +67,6 @@ def complete_dashboard_workflow():
     # 4. GENERATE INSIGHTS
     
     # Quick summary
-    print("=" * 60)
-    print("EXECUTIVE SUMMARY")
-    print("=" * 60)
     print(dashboard.create_quick_summary())
     
     # KPIs
@@ -74,13 +76,10 @@ def complete_dashboard_workflow():
     print(f"🛒 Transactions: {kpis['total_transactions']:,}")
     
     # Alerts
-    alerts = analyzer.get_alerts()
-    for alert in alerts['critical']:
-        print(f"\n🔴 {alert['message']}")
-        print(f"   → {alert['action']}")
+    alerts = analyzer.get_alerts(show=True)
     
     # Pareto insights
-    pareto = analyzer.get_pareto_insights()
+    pareto = analyzer.get_pareto_insights(show=True)
     print(f"\n📊 80/20 Rule: Top {pareto['top_products_pct']:.0f}% = {pareto['revenue_from_top_pct']:.1f}% of revenue")
     
     # 5. VISUALIZATIONS
@@ -233,6 +232,7 @@ def product_velocity_matrix(analyzer):
 
 
 def weekly_comparison_report(analyzer):
+    import pandas as pd
     """Generate week-over-week comparison"""
     data = analyzer.data
     
