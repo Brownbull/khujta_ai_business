@@ -1,1 +1,18 @@
 venv/
+archive/
+*.log
+*.tmp
+.DS_Store
+__pycache__/
+*.pyc
+.env
+.idea/
+.vscode/
+node_modules/
+dist/
+build/
+*.egg-info/
+
+# Data files
+/data/**/*.csv
+/data/**/*.txt
