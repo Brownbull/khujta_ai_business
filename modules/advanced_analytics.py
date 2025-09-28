@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 from scipy import stats
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
@@ -18,10 +19,13 @@ class AdvancedAnalytics:
     def __init__(self, analyzer):
         """Initialize with BusinessAnalyzer instance"""
         self.analyzer = analyzer
-        self.data = analyzer.data
         self.config = analyzer.config
+        self.run_dt = analyzer.run_dt
+        self.run_time = analyzer.run_time
+        self.data = analyzer.data
+        self.trend_analysis = None
     
-    def forecast_revenue(self, days_ahead: int = 30) -> Dict:
+    def forecast_revenue(self, days_ahead: int = 30, show: bool = False) -> Dict:
         """Simple revenue forecasting using moving averages"""
         if self.data is None:
             return {}
@@ -43,16 +47,25 @@ class AdvancedAnalytics:
         std_dev = daily_revenue.std()
         confidence_low = (last_avg - 1.96 * std_dev) * days_ahead
         confidence_high = (last_avg + 1.96 * std_dev) * days_ahead
-        
-        return {
+
+        return_forecast = {
             'forecast_daily_avg': last_avg,
             'forecast_total': forecast_total,
             'confidence_interval': (max(0, confidence_low), confidence_high),
             'days_ahead': days_ahead,
             'trend': 'increasing' if ma_7.iloc[-1] > ma_30.iloc[-1] else 'decreasing'
         }
-    
-    def find_cross_sell_opportunities(self, min_support: float = 0.01) -> List[Dict]:
+        
+        if show:
+            print(f"📈 Revenue Forecast for next {days_ahead} days:")
+            print(f" - Daily Average: {self.analyzer.format_currency(last_avg)}")
+            print(f" - Total Forecast: {self.analyzer.format_currency(forecast_total)}")
+            print(f" - 95% Confidence Interval: ({self.analyzer.format_currency(max(0, confidence_low))}, {self.analyzer.format_currency(confidence_high)})")
+            print(f" - Trend: {return_forecast['trend'].capitalize()}")
+ 
+        return return_forecast
+
+    def find_cross_sell_opportunities(self, min_support: float = 0.01, limit: int = 3, show: bool = False) -> List[Dict]:
         """Find products frequently bought together"""
         if self.data is None:
             return []
@@ -76,7 +89,7 @@ class AdvancedAnalytics:
         total_transactions = len(transaction_products)
         opportunities = []
         
-        for pair, count in sorted(product_pairs.items(), key=lambda x: x[1], reverse=True)[:10]:
+        for pair, count in sorted(product_pairs.items(), key=lambda x: x[1], reverse=True):
             support = count / total_transactions
             if support >= min_support:
                 # Get product names
@@ -95,7 +108,21 @@ class AdvancedAnalytics:
                     'support': support * 100,
                     'recommendation': f"Bundle {prod1_name[:20]}... with {prod2_name[:20]}..."
                 })
-        
+                if len(opportunities) >= limit:
+                    break  # Stop when limit is reached
+
+        if show:
+            if not opportunities:
+                print("ℹ️ No significant cross-sell opportunities found.")
+                return []
+            print("🛍️ Cross-Sell Opportunities:")
+            for opp in opportunities:
+                print(f"🛍️ Cross-Sell Opportunity: {opp['product_1'][:30]} & {opp['product_2'][:30]}")
+                print(f" - Frequency: {opp['frequency']}")
+                print(f" - Support: {opp['support']:.2f}%")
+                print(f" - Recommendation: {opp['recommendation']}")
+                print()
+
         return opportunities
     
     def customer_segmentation_rfm(self) -> Dict:
@@ -167,7 +194,7 @@ class AdvancedAnalytics:
             'avg_items_per_transaction': trans_analysis[self.config['product_col']].mean()
         }
     
-    def anomaly_detection(self) -> List[Dict]:
+    def anomaly_detection(self, limit: int = 3, show: bool = False) -> List[Dict]:
         """Detect anomalies in sales patterns"""
         anomalies = []
         
@@ -190,23 +217,34 @@ class AdvancedAnalytics:
                     'severity': 'high' if z_scores[daily_revenue.index.get_loc(day)] > 3 else 'medium',
                     'description': f'Unusual revenue on {day.strftime("%Y-%m-%d")}: {self.analyzer.format_currency(daily_revenue[day])}'
                 })
+                if len(anomalies) >= limit:
+                    break  # Stop when limit is reached
         
-        # Product price anomalies
-        product_prices = self.data.groupby(self.config['product_col'])[self.config['revenue_col']].agg(['mean', 'std'])
-        for product in product_prices.index[:50]:  # Check top 50 products
-            product_data = self.data[self.data[self.config['product_col']] == product]
-            if len(product_data) > 5:
-                prices = product_data[self.config['revenue_col']] / product_data[self.config['quantity_col']]
-                z_scores = np.abs(stats.zscore(prices.dropna()))
-                if (z_scores > 3).any():
-                    anomalies.append({
-                        'type': 'price_anomaly',
-                        'product': product,
-                        'severity': 'medium',
-                        'description': f'Unusual pricing detected for product {product}'
-                    })
-        
-        return anomalies[:10]  # Return top 10 anomalies
+        if len(anomalies) < limit:
+            # Product price anomalies
+            product_prices = self.data.groupby(self.config['product_col'])[self.config['revenue_col']].agg(['mean', 'std'])
+            for product in product_prices.index[:50]:  # Check top 50 products
+                product_data = self.data[self.data[self.config['product_col']] == product]
+                if len(product_data) > 5:
+                    prices = product_data[self.config['revenue_col']] / product_data[self.config['quantity_col']]
+                    z_scores = np.abs(stats.zscore(prices.dropna()))
+                    if (z_scores > 3).any():
+                        anomalies.append({
+                            'type': 'price_anomaly',
+                            'product': product,
+                            'severity': 'medium',
+                            'description': f'Unusual pricing detected for product {product}'
+                        })
+                    
+        if show:
+            if not anomalies:
+                print("ℹ️ No anomalies detected.")
+            else:
+                print("⚠️ Anomalies Detected:")
+                for anomaly in anomalies:
+                    print(f"   • {anomaly['description']}")  
+
+        return anomalies
     
     def create_trend_analysis(self, figsize=(15, 10)):
         """Create comprehensive trend analysis visualization"""
@@ -279,9 +317,30 @@ class AdvancedAnalytics:
             ax4.grid(True, alpha=0.3, axis='y')
         
         plt.tight_layout()
+        
+        self.trend_analysis = fig
+        
         return fig
     
-    def generate_recommendations(self) -> List[Dict]:
+    def save_trend_analysis(self, save_path: Optional[str] = None):
+        if self.trend_analysis is None:
+            self.create_trend_analysis()
+        
+        # Get save path if not defined
+        if not save_path:
+            output_dir = self.config['output_path'] + self.config['project_name']
+            if not os.path.exists(output_dir):
+                print(f"📂 Creating output directory: {output_dir}")
+                os.makedirs(output_dir, exist_ok=True)
+            save_path = output_dir + f'/trend_analysis_{self.run_dt}_{self.run_time}.png'
+        
+        # Save the figure
+        self.trend_analysis.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"✅ Trend analysis exported to '{save_path}'")
+        plt.close(self.trend_analysis)
+        return None
+    
+    def generate_recommendations(self, show: bool = False) -> List[Dict]:
         """Generate AI-powered recommendations based on analysis"""
         recommendations = []
         
@@ -340,4 +399,19 @@ class AdvancedAnalytics:
                 'timeframe': 'Immediate'
             })
         
-        return sorted(recommendations, key=lambda x: 0 if x['priority'] == 'HIGH' else 1 if x['priority'] == 'MEDIUM' else 2)
+        return_recommendations = sorted(recommendations, key=lambda x: 0 if x['priority'] == 'HIGH' else 1 if x['priority'] == 'MEDIUM' else 2)
+        
+        if show:
+            if not return_recommendations:
+                print("ℹ️ No actionable recommendations found.")
+            else:
+                print("\n💡 TOP RECOMMENDATIONS:")
+                for i, rec in enumerate(return_recommendations[:3], 1):
+                    print(f"\n{i}. [{rec['priority']}] {rec['title']}")
+                    print(f"   {rec['description']}")
+                    print(f"   Action: {rec['action']}")
+                    print(f"   Impact: {rec['expected_impact']} | Timeline: {rec['timeframe']}")
+            
+        return return_recommendations
+    
+    

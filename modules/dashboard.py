@@ -36,7 +36,7 @@ class ExecutiveDashboard:
             'dark': '#264653',
             'light': '#F1FAEE'
         }
-        self.fig = None
+        self.dashboard = None
     
     def create_full_dashboard(self, figsize=(20, 12)):
         """Create comprehensive executive dashboard"""
@@ -80,15 +80,15 @@ class ExecutiveDashboard:
         plt.tight_layout()
 
         # Store the figure in the instance for later use
-        self.fig = fig
+        self.dashboard = fig
         
         # If no save_path was provided, return the Figure so notebooks can render it
         return fig
     
     def save_full_dashboard(self, save_path: Optional[str] = None):
         """Save the previously created dashboard to a file"""
-        if self.fig is None:
-            raise ValueError("Dashboard figure not found. Please create the dashboard first using create_full_dashboard().")
+        if self.dashboard is None:
+            self.create_full_dashboard()
         
         # Get save path if not defined
         if not save_path:
@@ -99,12 +99,12 @@ class ExecutiveDashboard:
             save_path = output_dir + f'/executive_dashboard_{self.run_dt}_{self.run_time}.png'
         
         # Save the figure
-        self.fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        self.dashboard.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"✅ Dashboard exported to '{save_path}'")
         # Close the figure after saving to avoid automatic re-display in notebooks
         # and return None so notebook cells that call this function won't render
         # the figure when the intent was only to save to disk.
-        plt.close(self.fig)
+        plt.close(self.dashboard)
         return None
     
     def _create_kpi_cards(self, fig, gridspec, kpis):

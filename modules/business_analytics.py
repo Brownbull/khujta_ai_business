@@ -22,6 +22,7 @@ class BusinessAnalyzer:
         self.product_analysis = None
         self.inventory_status = None
         self.revenue_metrics = None
+        self.pareto = None
         
         # Initialize run timestamp strings for unique file names
         now = datetime.now()
@@ -136,7 +137,7 @@ class BusinessAnalyzer:
             }
         }
     
-    def get_kpis(self) -> Dict:
+    def get_kpis(self, show: bool = False) -> Dict:
         """Get key performance indicators"""
         if self.revenue_metrics is None:
             return {}
@@ -153,7 +154,7 @@ class BusinessAnalyzer:
         
         growth_rate = ((current_revenue - previous_revenue) / previous_revenue * 100) if previous_revenue > 0 else 0
         
-        return {
+        return_kpis = {
             'total_revenue': self.revenue_metrics['total_revenue'],
             'total_transactions': self.revenue_metrics['total_transactions'],
             'avg_transaction_value': self.revenue_metrics['avg_transaction_value'],
@@ -162,6 +163,14 @@ class BusinessAnalyzer:
             'current_period_revenue': current_revenue,
             'previous_period_revenue': previous_revenue
         }
+        
+        if show:
+            print(f"\n💰 Revenue: {self.format_currency(return_kpis['total_revenue'])}")
+            print(f"📈 Growth: {return_kpis['revenue_growth']:.1f}%")
+            print(f"🛒 Transactions: {return_kpis['total_transactions']:,}")
+
+        return return_kpis
+        return return_kpis
     
     def get_alerts(self, show: bool = False) -> Dict:
         """Get critical business alerts"""
@@ -257,7 +266,7 @@ class BusinessAnalyzer:
         total_revenue = self.product_analysis[self.config['revenue_col']].sum()
         revenue_pct = (revenue_from_top / total_revenue) * 100
         
-        pareto_return = {
+        self.pareto = {
             'top_products_count': twenty_percent,
             'top_products_pct': self.config['top_products_threshold'] * 100,
             'revenue_from_top': revenue_from_top,
@@ -268,17 +277,36 @@ class BusinessAnalyzer:
         
         # Display insights
         if show:
-            print(f"🎯 TOP INSIGHT: Your top {pareto_return['top_products_count']} products "
-                f"({pareto_return['top_products_pct']:.0f}% of catalog) generate "
-                f"{pareto_return['revenue_from_top_pct']:.1f}% of revenue!")
+            print(f"🎯 TOP INSIGHT: Your top {self.pareto['top_products_count']} products "
+                f"({self.pareto['top_products_pct']:.0f}% of catalog) generate "
+                f"{self.pareto['revenue_from_top_pct']:.1f}% of revenue!")
 
-            print(f"\nConcentration Risk Level: {pareto_return['concentration_level']}")
+            print(f"\nConcentration Risk Level: {self.pareto['concentration_level']}")
 
             print("\n📋 Top 5 Revenue Generators:")
-            for i, product in enumerate(pareto_return['top_products_list'][:5], 1):
+            for i, product in enumerate(self.pareto['top_products_list'][:5], 1):
                 print(f"  {i}. {product['glosa']}: {self.format_currency(product['total'])}")
+            print(f"\n📊 80/20 Rule: Top {self.pareto['top_products_pct']:.0f}% = {self.pareto['revenue_from_top_pct']:.1f}% of revenue")
         
-        return pareto_return
+        return self.pareto
+    
+    def save_top_products(self, save_path: Optional[str] = None):
+        """Save top products insights to CSV"""
+        if self.pareto is None:
+            self.pareto = self.get_pareto_insights()
+        top_products_df = pd.DataFrame(self.pareto['top_products_list'])
+
+        # Get save path if not defined
+        if not save_path:
+            output_dir = self.config['output_path'] + self.config['project_name']
+            if not os.path.exists(output_dir):
+                print(f"📂 Creating output directory: {output_dir}")
+                os.makedirs(output_dir, exist_ok=True)
+            save_path = output_dir + f'/top_products_{self.run_dt}_{self.run_time}.csv'
+
+        # Save to CSV
+        top_products_df.to_csv(save_path, index=False)
+        print(f"✅ Top Products exported to {save_path}")
     
     def get_inventory_health(self, show: bool = False) -> Dict:
         """Get inventory health summary"""

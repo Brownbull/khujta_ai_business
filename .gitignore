@@ -16,3 +16,5 @@ build/
 # Data files
 /data/**/*.csv
 /data/**/*.txt
+/outputs/**/ *.png
+/outputs/**/ *.csv
