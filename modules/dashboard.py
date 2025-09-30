@@ -29,6 +29,7 @@ class ExecutiveDashboard:
         self.run_dt = analyzer.run_dt
         self.run_time = analyzer.run_time
         self.out_dir = analyzer.out_dir
+        print(f"Dashboard output directory: {self.out_dir}")
         self.colors = {
             'primary': '#2E86AB',
             'success': '#52B788',
@@ -284,7 +285,7 @@ class ExecutiveDashboard:
                fontsize=9, style='italic', color='gray')
         
     # PUBLIC METHODS
-    def create_full_dashboard(self, figsize=(20, 12), save = False, out_dir: Optional[str] = None):
+    def create_full_dashboard(self, figsize=(20, 12), save = False):
         """Create comprehensive executive dashboard"""
         fig = plt.figure(figsize=figsize, facecolor='white')
         gs = GridSpec(3, 4, figure=fig, hspace=0.3, wspace=0.3)
@@ -330,7 +331,7 @@ class ExecutiveDashboard:
 
         if save:
             # Get save path
-            save_path = (out_dir or self.out_dir) + f'/dashboard_executive.png'
+            save_path = (self.out_dir) + f'/dashboard_executive.png'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Save figure
@@ -339,7 +340,7 @@ class ExecutiveDashboard:
 
         return fig
     
-    def create_quick_summary(self, save: bool = False, out_dir: Optional[str] = None) -> str:
+    def create_quick_summary(self, save: bool = False) -> str:
         """Create a quick text summary for executives.
 
         Behavior:
@@ -383,7 +384,7 @@ class ExecutiveDashboard:
         # Save or print
         if save:
             # Resolve save path and ensure directory exists
-            save_path = (out_dir or self.out_dir) + f'/dashboard_summary.txt'
+            save_path = (self.out_dir) + "/dashboard_summary.txt"
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout

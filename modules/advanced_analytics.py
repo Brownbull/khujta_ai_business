@@ -24,10 +24,11 @@ class AdvancedAnalytics:
         self.run_dt = analyzer.run_dt
         self.run_time = analyzer.run_time
         self.out_dir = analyzer.out_dir
+        print(f"Advanced analytics output directory: {self.out_dir}")
         self.data = analyzer.data
         self.trend_analysis = None
     
-    def forecast_revenue(self, days_ahead: int = 30, save: bool = False, out_dir: Optional[str] = None) -> Dict:
+    def forecast_revenue(self, days_ahead: int = 30, save: bool = False) -> Dict:
         """Simple revenue forecasting using moving averages"""
         if self.data is None:
             return {}
@@ -70,7 +71,7 @@ class AdvancedAnalytics:
         # Save or print
         if save:
             # Resolve save path and ensure directory exists
-            save_path = (out_dir or self.out_dir) + f'/advanced_forecast_revenue.txt'
+            save_path = (self.out_dir) + f'/advanced_forecast_revenue.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -85,7 +86,7 @@ class AdvancedAnalytics:
  
         return return_forecast
 
-    def find_cross_sell_opportunities(self, min_support: float = 0.01, limit: int = 3, save: bool = False, out_dir: Optional[str] = None) -> List[Dict]:
+    def find_cross_sell_opportunities(self, min_support: float = 0.01, limit: int = 3, save: bool = False) -> List[Dict]:
         """Find products frequently bought together"""
         if self.data is None:
             return []
@@ -233,7 +234,7 @@ class AdvancedAnalytics:
             'avg_items_per_transaction': trans_analysis[self.config['product_col']].mean()
         }
     
-    def anomaly_detection(self, limit: int = 3, save: bool = False, out_dir: Optional[str] = None) -> List[Dict]:
+    def anomaly_detection(self, limit: int = 3, save: bool = False) -> List[Dict]:
         """Detect anomalies in sales patterns"""
         anomalies = []
         
@@ -303,7 +304,7 @@ class AdvancedAnalytics:
 
         return anomalies
     
-    def create_trend_analysis(self, figsize=(15, 10), save: bool = False, out_dir: Optional[str] = None) -> plt.Figure:
+    def create_trend_analysis(self, figsize=(15, 10), save: bool = False) -> plt.Figure:
         """Create comprehensive trend analysis visualization"""
         fig, axes = plt.subplots(2, 2, figsize=figsize)
         fig.suptitle('Business Trend Analysis', fontsize=16, fontweight='bold')
@@ -379,13 +380,13 @@ class AdvancedAnalytics:
         
         if save:
             # Get save path
-            save_path = out_dir or self.out_dir + f'/trend_analysis.png'
+            save_path = self.out_dir + f'/trend_analysis.png'
             fig.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f"✅ Dashboard saved to '{save_path}'")
 
         return fig
     
-    def generate_recommendations(self, save: bool = False, out_dir: Optional[str] = None) -> List[Dict]:
+    def generate_recommendations(self, save: bool = False) -> List[Dict]:
         """Generate AI-powered recommendations based on analysis"""
         recommendations = []
         

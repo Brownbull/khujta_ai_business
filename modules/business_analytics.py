@@ -16,7 +16,7 @@ warnings.filterwarnings('ignore')
 class BusinessAnalyzer:
     """Main orchestrator for business analytics"""
     
-    def __init__(self, data_source: str = None, config: Dict = None, out_dir: str = None):
+    def __init__(self, data_source: str = None, config: Dict = None):
         """Initialize the analyzer with data and configuration"""
         self.config = config or self._default_config()
         self.data = None
@@ -35,7 +35,8 @@ class BusinessAnalyzer:
             self.load_data(data_source)
         
         # Prepare output directory
-        self.out_dir = (out_dir or self._set_out_dir())
+        self.out_dir = self._set_out_dir()
+        print(f"Output directory set to: {self.out_dir}")
     
     def _default_config(self) -> Dict:
         """Default configuration settings"""
@@ -60,7 +61,7 @@ class BusinessAnalyzer:
     def _set_out_dir(self) -> str:
         # Get save path if not defined
         output_dir = os.path.join(self.config['out_dir'], self.config['project_name'], f"{self.run_dt}_{self.run_time}")
-        self.config['out_dir'] = output_dir
+        return output_dir
     
     def _prepare_data(self):
         """Prepare data for analysis"""
@@ -149,7 +150,7 @@ class BusinessAnalyzer:
         self._prepare_data()
         self._calculate_metrics()
         
-    def get_kpis(self, save: bool = False, out_dir: Optional[str] = None) -> Dict:
+    def get_kpis(self, save: bool = False) -> Dict:
         """Get key performance indicators"""
         if self.revenue_metrics is None:
             return {}
@@ -184,7 +185,7 @@ class BusinessAnalyzer:
         
         if save:
             # Resolve save path and ensure directory exists
-            save_path = (out_dir or self.out_dir) + f'/business_analytics_kpi.txt'
+            save_path = (self.out_dir) + f'/BA_kpi.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -199,7 +200,7 @@ class BusinessAnalyzer:
         
         return return_kpis
     
-    def get_alerts(self, save: bool = False, out_dir: Optional[str] = None) -> Dict:
+    def get_alerts(self, save: bool = False) -> Dict:
         """Get critical business alerts"""
         alerts = {
             'critical': [],
@@ -283,7 +284,7 @@ class BusinessAnalyzer:
         
         if save:
             # Resolve save path and ensure directory exists
-            save_path = (out_dir or self.out_dir) + f'/business_analytics_alerts.txt'
+            save_path = (self.out_dir) + f'/BA_alerts.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -298,7 +299,7 @@ class BusinessAnalyzer:
         
         return alerts
 
-    def get_pareto_insights(self, top_products_count: int = 5, save: bool = False, out_dir: Optional[str] = None) -> Dict:
+    def get_pareto_insights(self, top_products_count: int = 5, save: bool = False) -> Dict:
         """Get 80/20 analysis insights"""
         if self.product_analysis is None:
             return {}
@@ -328,7 +329,7 @@ class BusinessAnalyzer:
 
         pareto_str.append(f"\nConcentration Risk Level: {self.pareto['concentration_level']}")
 
-        pareto_str.append("\n📋 Top {top_products_count} Revenue Generators:")
+        pareto_str.append(f"\n📋 Top {top_products_count} Revenue Generators:")
         for i, product in enumerate(self.pareto['top_products_list'][:top_products_count], 1):
             pareto_str.append(f"  {i}. {product['glosa']}: {self.format_currency(product['total'])}")
         
@@ -339,7 +340,7 @@ class BusinessAnalyzer:
         # Save to file if needed
         if save:
             # Resolve save path and ensure directory exists
-            save_path = (out_dir or self.out_dir) + f'/business_analytics_pareto.txt'
+            save_path = (self.out_dir) + f'/BA_pareto.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -354,7 +355,7 @@ class BusinessAnalyzer:
             
         return self.pareto
 
-    def get_inventory_health(self, save: bool = False, out_dir: Optional[str] = None) -> Dict:
+    def get_inventory_health(self, save: bool = False) -> Dict:
         """Get inventory health summary"""
         if self.inventory_status is None:
             return {}
@@ -384,7 +385,7 @@ class BusinessAnalyzer:
         
         if save:
             # Resolve save path and ensure directory exists
-            save_path = (out_dir or self.out_dir) + f'/business_analytics_inventory_health.txt'
+            save_path = (self.out_dir) + f'/BA_inventory_health.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -399,7 +400,7 @@ class BusinessAnalyzer:
         
         return inventory_return
     
-    def get_peak_times(self, save: bool = False, out_dir: Optional[str] = None) -> Dict:
+    def get_peak_times(self, save: bool = False) -> Dict:
         """Get peak business times"""
         if self.data is None or 'hour' not in self.data.columns:
             return {}
@@ -435,7 +436,7 @@ class BusinessAnalyzer:
         
         if save:
             # Resolve save path and ensure directory exists
-            save_path = (out_dir or self.out_dir) + f'/business_analytics_peak_times.txt'
+            save_path = (self.out_dir) + f'/BA_peak_times.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -457,7 +458,7 @@ class BusinessAnalyzer:
         else:
             return f"${value:,.2f}"
         
-    def save_executive_summary(self, save: bool = False, out_dir: Optional[str] = None):
+    def save_executive_summary(self, save: bool = False):
         """Save executive summary to CSV"""
         summary = {
             'Date': self.config['analysis_date'],
@@ -475,7 +476,7 @@ class BusinessAnalyzer:
         # Save or print
         if save:
             # Resolve save path and ensure directory exists
-            save_path = (out_dir or self.out_dir) + f'/business_analytics_executive_summary.txt'
+            save_path = (self.out_dir) + f'/BA_executive_summary.csv'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout

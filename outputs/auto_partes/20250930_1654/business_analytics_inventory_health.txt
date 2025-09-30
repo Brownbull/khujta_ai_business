@@ -1,0 +1,7 @@
+📊 Inventory Health Score: 58%
+
+⚠️ Dead Stock Alert: 0 products
+
+🟡 Products At Risk (Slowing):
+  • PIEZA MOTOR ALFA ROMEO CLASICO: 57 days since last sale
+  • KIT SUSPENSION RACING: 32 days since last sale
