@@ -150,7 +150,7 @@ class AdvancedAnalytics:
         # Save or print
         if save:
             # Resolve save path and ensure directory exists
-            save_path = out_dir or (self.out_dir) + f'/BAA_cross_sell_opportunities.txt')
+            save_path = (self.out_dir) + f'/BAA_cross_sell_opportunities.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -289,7 +289,7 @@ class AdvancedAnalytics:
         # Save or print
         if save:
             # Resolve save path and ensure directory exists
-            save_path = out_dir or (self.out_dir) + f'/BAA_anomaly_detection.txt')
+            save_path = (self.out_dir) + f'/BAA_anomaly_detection.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -462,7 +462,7 @@ class AdvancedAnalytics:
         
         if save:
             # Resolve save path and ensure directory exists
-            save_path = out_dir or (self.out_dir) + f'/BAA_recommendations.txt')
+            save_path = (self.out_dir) + f'/BAA_recommendations.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout

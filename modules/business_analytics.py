@@ -159,13 +159,13 @@ class BusinessAnalyzer:
         mid_date = self.revenue_metrics['date_range']['start'] + \
                   (self.revenue_metrics['date_range']['end'] - self.revenue_metrics['date_range']['start']) / 2
         
-        current_period = self.data[self.data[self.config['date_col']] >= mid_date]
-        previous_period = self.data[self.data[self.config['date_col']] < mid_date]
+        current_period = self.data[self.data[self.config['date_col']] >= mid_date] # Current period is the latter half
+        previous_period = self.data[self.data[self.config['date_col']] < mid_date] # Previous period is the first half
         
-        current_revenue = current_period[self.config['revenue_col']].sum()
-        previous_revenue = previous_period[self.config['revenue_col']].sum()
+        current_revenue = current_period[self.config['revenue_col']].sum() # Revenue in current period
+        previous_revenue = previous_period[self.config['revenue_col']].sum() # Revenue in previous period
         
-        growth_rate = ((current_revenue - previous_revenue) / previous_revenue * 100) if previous_revenue > 0 else 0
+        growth_rate = ((current_revenue - previous_revenue) / previous_revenue * 100) if previous_revenue > 0 else 0 # Growth rate calculation
         
         return_kpis = {
             'total_revenue': self.revenue_metrics['total_revenue'],
