@@ -82,3 +82,114 @@ def weekly_comparison_report(analyzer, save_path: Optional[str] = None):
 
     return metrics, changes
 
+def product_velocity_matrix(analyzer, save_path: Optional[str] = None):
+    """Create product velocity matrix (revenue vs units sold)"""
+    import matplotlib.pyplot as plt
+    import matplotlib.patheffects as pe
+    from matplotlib.ticker import FuncFormatter
+    
+    # Get product metrics
+    products = analyzer.product_analysis.head(20) # Top 20 products by revenue
+    scale = 10000 # Adjusted size divisor for better scaling
+    fig, ax = plt.subplots(figsize=(10, 8)) # Larger figure for clarity
+    
+    scatter = ax.scatter(
+        products[analyzer.config['quantity_col']], # Units sold
+        products[analyzer.config['revenue_col']], # Revenue
+        s=products[analyzer.config['revenue_col']] / scale,  # Size by revenue
+        alpha=0.7, # Transparency for better visibility
+        c=range(len(products)), # Color by index
+        cmap='nipy_spectral', # Color map
+        edgecolors='w', linewidths=0.5
+    )
+    
+    # Add quadrant lines
+    ax.axvline(products[analyzer.config['quantity_col']].median(), 
+              color='gray', linestyle='--', alpha=0.5) # Vertical median line
+    ax.axhline(products[analyzer.config['revenue_col']].median(), 
+              color='gray', linestyle='--', alpha=0.5) # Horizontal median line
+    
+    # Labels
+    ax.set_xlabel('Units Sold', fontsize=12) # X-axis label
+    ax.set_ylabel('Total Revenue', fontsize=12) # Y-axis label
+    ax.set_title('Product Velocity Matrix\n(Size = Revenue)', fontsize=14, fontweight='bold') # Title
+    
+    # Add quadrant labels
+    ax.text(0.95, 0.95, 'Stars\n(High Revenue, High Volume)', 
+           transform=ax.transAxes, ha='right', va='top', fontsize=10, 
+           bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.5)) # Top-right
+    ax.text(0.05, 0.95, 'Premium\n(High Revenue, Low Volume)', 
+           transform=ax.transAxes, ha='left', va='top', fontsize=10,
+           bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.5)) # Top-left
+    ax.text(0.95, 0.05, 'Volume\n(Low Revenue, High Volume)', 
+           transform=ax.transAxes, ha='right', va='bottom', fontsize=10,
+           bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.5)) # Bottom-right
+    ax.text(0.05, 0.05, 'Question\n(Low Revenue, Low Volume)', 
+           transform=ax.transAxes, ha='left', va='bottom', fontsize=10,
+           bbox=dict(boxstyle='round', facecolor='lightcoral', alpha=0.5)) # Bottom-left
+    
+    cb = plt.colorbar(scatter, label='Product Rank') # Colorbar for product ranking
+    # Invert the colorbar so low values appear at the top and high values at the bottom
+    try:
+        cb.ax.invert_yaxis()
+    except Exception:
+        # If colorbar inversion fails for any backend, continue silently
+        pass
+    ax.grid(True, alpha=0.3) # Grid for better readability
+    # Format Y axis (revenue) with thousand separators
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: f"{x:,.0f}"))
+    plt.tight_layout() # Tight layout for better spacing
+
+    # Annotate points with product labels (use description_col if available)
+    desc_col = analyzer.config.get('description_col')
+    # Determine top products to emphasize (by revenue)
+    top_n = min(10, len(products))
+    try:
+        top_idx = products[analyzer.config['revenue_col']].nlargest(top_n).index
+    except Exception:
+        top_idx = products.index[:top_n]
+
+    for i, (_, row) in enumerate(products.iterrows()):
+        x = row[analyzer.config['quantity_col']]
+        y = row[analyzer.config['revenue_col']]
+        if desc_col and desc_col in products.columns:
+            label = str(row[desc_col])[:30]
+        else:
+            label = str(row.name)[:30]
+
+        # Emphasize top products
+        if row.name in top_idx:
+            txt_kwargs = dict(fontsize=9, fontweight='bold', color='black')
+            offset = (4, 4)
+        else:
+            txt_kwargs = dict(fontsize=7, color='black', alpha=0.8)
+            offset = (3, 3)
+
+        txt = ax.annotate(
+            label,
+            xy=(x, y),
+            xytext=offset,
+            textcoords='offset points',
+            ha='left',
+            va='bottom',
+            **txt_kwargs
+        )
+        # Add a light stroke to text to increase readability over markers
+        txt.set_path_effects([pe.withStroke(linewidth=1, foreground='white')])
+    
+    if not save_path:
+        # Save report to text file
+        import os
+        # Get save path if not defined
+        if not save_path:
+            output_dir = analyzer.config['output_path'] + analyzer.config['project_name']
+            if not os.path.exists(output_dir):
+                print(f"📂 Creating output directory: {output_dir}")
+                os.makedirs(output_dir, exist_ok=True)
+            save_path = output_dir + f'/product_velocity_{analyzer.run_dt}_{analyzer.run_time}.png'
+        
+    # Save figure
+    fig.savefig(f"{save_path}", dpi=300, bbox_inches='tight')
+    print(f"✅ Product velocity matrix exported to {save_path}")
+                
+    return fig

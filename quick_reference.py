@@ -145,53 +145,7 @@ def revenue_by_hour_analysis(analyzer):
     return fig
 
 
-def product_velocity_matrix(analyzer):
-    """Create product velocity matrix (revenue vs units sold)"""
-    import matplotlib.pyplot as plt
-    
-    # Get product metrics
-    products = analyzer.product_analysis.head(20)
-    
-    fig, ax = plt.subplots(figsize=(10, 8))
-    
-    scatter = ax.scatter(
-        products[analyzer.config['quantity_col']],
-        products[analyzer.config['revenue_col']],
-        s=products[analyzer.config['revenue_col']] / 10000,  # Size by revenue
-        alpha=0.6,
-        c=range(len(products)),
-        cmap='viridis'
-    )
-    
-    # Add quadrant lines
-    ax.axvline(products[analyzer.config['quantity_col']].median(), 
-              color='gray', linestyle='--', alpha=0.5)
-    ax.axhline(products[analyzer.config['revenue_col']].median(), 
-              color='gray', linestyle='--', alpha=0.5)
-    
-    # Labels
-    ax.set_xlabel('Units Sold', fontsize=12)
-    ax.set_ylabel('Total Revenue', fontsize=12)
-    ax.set_title('Product Velocity Matrix\n(Size = Revenue)', fontsize=14, fontweight='bold')
-    
-    # Add quadrant labels
-    ax.text(0.95, 0.95, 'Stars\n(High Revenue, High Volume)', 
-           transform=ax.transAxes, ha='right', va='top', fontsize=10, 
-           bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.5))
-    ax.text(0.05, 0.95, 'Premium\n(High Revenue, Low Volume)', 
-           transform=ax.transAxes, ha='left', va='top', fontsize=10,
-           bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.5))
-    ax.text(0.95, 0.05, 'Volume\n(Low Revenue, High Volume)', 
-           transform=ax.transAxes, ha='right', va='bottom', fontsize=10,
-           bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.5))
-    ax.text(0.05, 0.05, 'Question\n(Low Revenue, Low Volume)', 
-           transform=ax.transAxes, ha='left', va='bottom', fontsize=10,
-           bbox=dict(boxstyle='round', facecolor='lightcoral', alpha=0.5))
-    
-    plt.colorbar(scatter, label='Product Rank')
-    ax.grid(True, alpha=0.3)
-    
-    return fig
+
 
 
 
@@ -201,7 +155,8 @@ def product_velocity_matrix(analyzer):
 # =============================================================================
 
 if __name__ == "__main__":
-    from modules.reports import weekly_comparison_report
+    from modules.reports import weekly_comparison_report, product_velocity_matrix
+    
     print("Starting Executive Dashboard Generation...")
     print("=" * 60)
     
@@ -219,9 +174,6 @@ if __name__ == "__main__":
     
     # Product velocity
     velocity_fig = product_velocity_matrix(analyzer)
-    
-    velocity_fig.savefig(f"{analyzer.config['output_path']}{analyzer.config['project_name']}/product_velocity.png", dpi=300, bbox_inches='tight')
-    print("\n✅ Product velocity matrix saved")
     
     # Hourly analysis
     hourly_fig = revenue_by_hour_analysis(analyzer)

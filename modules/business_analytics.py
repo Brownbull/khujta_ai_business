@@ -15,7 +15,7 @@ warnings.filterwarnings('ignore')
 class BusinessAnalyzer:
     """Main orchestrator for business analytics"""
     
-    def __init__(self, data_source: str = None, config: Dict = None):
+    def __init__(self, data_source: str = None, config: Dict = None, out_dir: str = None):
         """Initialize the analyzer with data and configuration"""
         self.config = config or self._default_config()
         self.data = None
@@ -23,6 +23,7 @@ class BusinessAnalyzer:
         self.inventory_status = None
         self.revenue_metrics = None
         self.pareto = None
+        self.out_dir = out_dir or self._set_out_dir()
         
         # Initialize run timestamp strings for unique file names
         now = datetime.now()
@@ -48,8 +49,16 @@ class BusinessAnalyzer:
             'quantity_col': 'cantidad',
             'transaction_col': 'trans_id',
             'cost_col': 'costo',
-            'output_path' : 'outputs/' 
+            'out_dir' : 'outputs' 
         }
+        
+    def _set_out_dir(self) -> str:
+        # Get save path if not defined
+        output_dir = os.path.join(self.config['out_dir'], self.config['project_name'], f"{self.run_dt}_{self.run_time}")
+        if not os.path.exists(output_dir):
+            print(f"📂 Creating output directory: {output_dir}")
+            os.makedirs(output_dir, exist_ok=True)
+        self.config['out_dir'] = output_dir
     
     def load_data(self, data_source: str):
         """Load and prepare data"""
@@ -170,7 +179,6 @@ class BusinessAnalyzer:
             print(f"🛒 Transactions: {return_kpis['total_transactions']:,}")
 
         return return_kpis
-        return return_kpis
     
     def get_alerts(self, show: bool = False) -> Dict:
         """Get critical business alerts"""
@@ -290,24 +298,16 @@ class BusinessAnalyzer:
         
         return self.pareto
     
-    def save_top_products(self, save_path: Optional[str] = None):
+    def save_top_products(self, out_dir: Optional[str] = None):
         """Save top products insights to CSV"""
         if self.pareto is None:
             self.pareto = self.get_pareto_insights()
         top_products_df = pd.DataFrame(self.pareto['top_products_list'])
 
-        # Get save path if not defined
-        if not save_path:
-            output_dir = self.config['output_path'] + self.config['project_name']
-            if not os.path.exists(output_dir):
-                print(f"📂 Creating output directory: {output_dir}")
-                os.makedirs(output_dir, exist_ok=True)
-            save_path = output_dir + f'/top_products_{self.run_dt}_{self.run_time}.csv'
-
         # Save to CSV
-        top_products_df.to_csv(save_path, index=False)
-        print(f"✅ Top Products exported to {save_path}")
-    
+        top_products_df.to_csv(out_dir or self.out_dir, index=False)
+        print(f"✅ Top Products exported to {out_dir or self.out_dir}")
+
     def get_inventory_health(self, show: bool = False) -> Dict:
         """Get inventory health summary"""
         if self.inventory_status is None:
