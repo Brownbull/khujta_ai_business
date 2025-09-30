@@ -303,10 +303,13 @@ class BusinessAnalyzer:
         if self.pareto is None:
             self.pareto = self.get_pareto_insights()
         top_products_df = pd.DataFrame(self.pareto['top_products_list'])
-
+        
+        # Get save path
+        save_path = out_dir or self.out_dir + f'/top_products.csv'
+        
         # Save to CSV
-        top_products_df.to_csv(out_dir or self.out_dir, index=False)
-        print(f"✅ Top Products exported to {out_dir or self.out_dir}")
+        top_products_df.to_csv(save_path, index=False)
+        print(f"✅ Top Products exported to {save_path}")
 
     def get_inventory_health(self, show: bool = False) -> Dict:
         """Get inventory health summary"""
@@ -378,7 +381,7 @@ class BusinessAnalyzer:
         else:
             return f"${value:,.2f}"
         
-    def save_executive_summary(self, save_path: Optional[str] = None):
+    def save_executive_summary(self, out_dir: Optional[str] = None):
         """Save executive summary to CSV"""
         summary = {
             'Date': self.config['analysis_date'],
@@ -393,15 +396,9 @@ class BusinessAnalyzer:
         # Convert to DataFrame for easy CSV export
         summary_df = pd.DataFrame([summary])
         
-        # Get save path if not defined
-        if not save_path:
-            output_dir = self.config['output_path'] + self.config['project_name']
-            if not os.path.exists(output_dir):
-                print(f"📂 Creating output directory: {output_dir}")
-                os.makedirs(output_dir, exist_ok=True)
-            save_path = output_dir + f'/executive_summary_{self.run_dt}_{self.run_time}.csv'
+        # Get save path
+        save_path = out_dir or self.config['out_dir'] + f'/executive_summary.csv'
 
         # Save to CSV
         summary_df.to_csv(save_path, index=False)
         print(f"✅ Executive summary exported to {save_path}")
-        

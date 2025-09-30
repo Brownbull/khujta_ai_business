@@ -80,13 +80,10 @@ def complete_dashboard_workflow():
     # 5. VISUALIZATIONS
     # Main dashboard
     fig = dashboard.create_full_dashboard(figsize=(20, 12))
-    fig.savefig(f"{config['output_path']}{config['project_name']}/executive_dashboard.png", dpi=300, bbox_inches='tight')
-    print(f"✅ Dashboard saved to '{config['output_path']}{config['project_name']}/executive_dashboard.png'")
     
     # Trend analysis
     trend_fig = advanced.create_trend_analysis(figsize=(15, 10))
-    trend_fig.savefig(f"{config['output_path']}{config['project_name']}/trend_analysis.png", dpi=300, bbox_inches='tight')
-    print(f"✅ Trend analysis saved to '{config['output_path']}{config['project_name']}/trend_analysis.png'")
+    
     
     # 6. ADVANCED ANALYTICS
     # Forecast

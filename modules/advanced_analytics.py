@@ -22,6 +22,7 @@ class AdvancedAnalytics:
         self.config = analyzer.config
         self.run_dt = analyzer.run_dt
         self.run_time = analyzer.run_time
+        self.out_dir = analyzer.out_dir
         self.data = analyzer.data
         self.trend_analysis = None
     
@@ -246,7 +247,7 @@ class AdvancedAnalytics:
 
         return anomalies
     
-    def create_trend_analysis(self, figsize=(15, 10)):
+    def create_trend_analysis(self, figsize=(15, 10), out_dir: Optional[str] = None):
         """Create comprehensive trend analysis visualization"""
         fig, axes = plt.subplots(2, 2, figsize=figsize)
         fig.suptitle('Business Trend Analysis', fontsize=16, fontweight='bold')
@@ -320,19 +321,20 @@ class AdvancedAnalytics:
         
         self.trend_analysis = fig
         
+        # Get save path
+        save_path = out_dir or self.out_dir + f'/trend_analysis.png'
+
+        fig.savefig(f"{save_path}/trend_analysis.png", dpi=300, bbox_inches='tight')
+        print(f"✅ Trend analysis saved to '{save_path}/trend_analysis.png'")
+        
         return fig
     
-    def save_trend_analysis(self, save_path: Optional[str] = None):
+    def save_trend_analysis(self, out_dir: Optional[str] = None):
         if self.trend_analysis is None:
             self.create_trend_analysis()
         
         # Get save path if not defined
-        if not save_path:
-            output_dir = self.config['output_path'] + self.config['project_name']
-            if not os.path.exists(output_dir):
-                print(f"📂 Creating output directory: {output_dir}")
-                os.makedirs(output_dir, exist_ok=True)
-            save_path = output_dir + f'/trend_analysis_{self.run_dt}_{self.run_time}.png'
+        save_path = out_dir or self.out_dir + f'/trend_analysis.png'
         
         # Save the figure
         self.trend_analysis.savefig(save_path, dpi=300, bbox_inches='tight')

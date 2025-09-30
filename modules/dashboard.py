@@ -10,6 +10,7 @@ import seaborn as sns
 from matplotlib.gridspec import GridSpec
 import matplotlib.patches as mpatches
 from typing import Dict, Optional
+from contextlib import redirect_stdout
 import os
 import warnings
 warnings.filterwarnings('ignore')
@@ -27,6 +28,7 @@ class ExecutiveDashboard:
         self.analyzer = analyzer
         self.config = analyzer.config
         self.run_dt = analyzer.run_dt
+        self.out_dir = analyzer.out_dir
         self.run_time = analyzer.run_time
         self.colors = {
             'primary': '#2E86AB',
@@ -38,7 +40,7 @@ class ExecutiveDashboard:
         }
         self.dashboard = None
     
-    def create_full_dashboard(self, figsize=(20, 12)):
+    def create_full_dashboard(self, figsize=(20, 12), save = False, out_dir: Optional[str] = None):
         """Create comprehensive executive dashboard"""
         fig = plt.figure(figsize=figsize, facecolor='white')
         gs = GridSpec(3, 4, figure=fig, hspace=0.3, wspace=0.3)
@@ -81,31 +83,72 @@ class ExecutiveDashboard:
 
         # Store the figure in the instance for later use
         self.dashboard = fig
-        
-        # If no save_path was provided, return the Figure so notebooks can render it
+
+        if save:
+            # Get save path
+            save_path = out_dir or self.out_dir + f'/dashboard_executive.png'
+            fig.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"✅ Dashboard saved to '{save_path}'")
+
         return fig
     
-    def save_full_dashboard(self, save_path: Optional[str] = None):
-        """Save the previously created dashboard to a file"""
-        if self.dashboard is None:
-            self.create_full_dashboard()
-        
-        # Get save path if not defined
-        if not save_path:
-            output_dir = self.config['output_path'] + self.config['project_name']
-            if not os.path.exists(output_dir):
-                print(f"📂 Creating output directory: {output_dir}")
-                os.makedirs(output_dir, exist_ok=True)
-            save_path = output_dir + f'/executive_dashboard_{self.run_dt}_{self.run_time}.png'
-        
-        # Save the figure
-        self.dashboard.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✅ Dashboard exported to '{save_path}'")
-        # Close the figure after saving to avoid automatic re-display in notebooks
-        # and return None so notebook cells that call this function won't render
-        # the figure when the intent was only to save to disk.
-        plt.close(self.dashboard)
-        return None
+    def create_quick_summary(self, save: bool = False, out_dir: Optional[str] = None) -> str:
+        """Create a quick text summary for executives.
+
+        Behavior:
+        - If save is False: prints the summary to standard output and returns it.
+        - If save is True: writes the printed summary to the resolved save_path file
+          (creates directories if necessary) and returns the summary string.
+        """
+        kpis = self.analyzer.get_kpis()
+        alerts = self.analyzer.get_alerts()
+        pareto = self.analyzer.get_pareto_insights()
+        inventory = self.analyzer.get_inventory_health()
+
+        summary = []
+        summary.append("=" * 60)
+        summary.append("DASHBOARD SUMMARY")
+        summary.append("=" * 60)
+
+        # KPIs
+        summary.append("\n📊 KEY METRICS:")
+        summary.append(f"  • Total Revenue: {self.analyzer.format_currency(kpis['total_revenue'])}")
+        summary.append(f"  • Growth Rate: {kpis['revenue_growth']:.1f}%")
+        summary.append(f"  • Transactions: {kpis['total_transactions']:,}")
+
+        # Critical alerts
+        if alerts.get('critical'):
+            summary.append("\n🔴 CRITICAL ACTIONS:")
+            for alert in alerts.get('critical', []):
+                summary.append(f"  • {alert.get('message')}")
+                summary.append(f"    → {alert.get('action')}")
+
+        # Key insights
+        summary.append("\n💡 KEY INSIGHTS:")
+        summary.append(f"  • Top {pareto.get('top_products_pct', 0):.0f}% of products = {pareto.get('revenue_from_top_pct', 0):.1f}% of revenue")
+        summary.append(f"  • Inventory Health: {inventory.get('healthy_stock_pct', 0):.0f}% healthy")
+        summary.append(f"  • Dead Stock: {inventory.get('dead_stock_count', 0)} products")
+
+        summary.append("\n" + "=" * 60)
+
+        summary_str = "\n".join(summary)
+
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/dashboard_summary.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(summary_str)
+
+            print(f"✅ Dashboard summary exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(summary_str)
+
+        return summary_str
     
     def _create_kpi_cards(self, fig, gridspec, kpis):
         """Create KPI metric cards"""
@@ -349,38 +392,4 @@ class ExecutiveDashboard:
         ax.text(0.5, -0.15, peak_times.get('recommendation', ''), 
                transform=ax.transAxes, ha='center', va='top',
                fontsize=9, style='italic', color='gray')
-    
-    def create_quick_summary(self):
-        """Create a quick text summary for executives"""
-        kpis = self.analyzer.get_kpis()
-        alerts = self.analyzer.get_alerts()
-        pareto = self.analyzer.get_pareto_insights()
-        inventory = self.analyzer.get_inventory_health()
         
-        summary = []
-        summary.append("=" * 60)
-        summary.append("EXECUTIVE SUMMARY")
-        summary.append("=" * 60)
-        
-        # KPIs
-        summary.append("\n📊 KEY METRICS:")
-        summary.append(f"  • Total Revenue: {self.analyzer.format_currency(kpis['total_revenue'])}")
-        summary.append(f"  • Growth Rate: {kpis['revenue_growth']:.1f}%")
-        summary.append(f"  • Transactions: {kpis['total_transactions']:,}")
-        
-        # Critical alerts
-        if alerts['critical']:
-            summary.append("\n🔴 CRITICAL ACTIONS:")
-            for alert in alerts['critical']:
-                summary.append(f"  • {alert['message']}")
-                summary.append(f"    → {alert['action']}")
-        
-        # Key insights
-        summary.append("\n💡 KEY INSIGHTS:")
-        summary.append(f"  • Top {pareto['top_products_pct']:.0f}% of products = {pareto['revenue_from_top_pct']:.1f}% of revenue")
-        summary.append(f"  • Inventory Health: {inventory['healthy_stock_pct']:.0f}% healthy")
-        summary.append(f"  • Dead Stock: {inventory['dead_stock_count']} products")
-        
-        summary.append("\n" + "=" * 60)
-        
-        return "\n".join(summary)
