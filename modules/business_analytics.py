@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+from contextlib import redirect_stdout
 import warnings
 import os
 warnings.filterwarnings('ignore')
@@ -51,7 +52,8 @@ class BusinessAnalyzer:
             'cost_col': 'costo',
             'out_dir' : 'outputs' 
         }
-        
+
+    # INTERNAL METHODS
     def _set_out_dir(self) -> str:
         # Get save path if not defined
         output_dir = os.path.join(self.config['out_dir'], self.config['project_name'], f"{self.run_dt}_{self.run_time}")
@@ -59,18 +61,6 @@ class BusinessAnalyzer:
             print(f"📂 Creating output directory: {output_dir}")
             os.makedirs(output_dir, exist_ok=True)
         self.config['out_dir'] = output_dir
-    
-    def load_data(self, data_source: str):
-        """Load and prepare data"""
-        if data_source.endswith('.csv'):
-            self.data = pd.read_csv(data_source)
-        elif data_source.endswith(('.xlsx', '.xls')):
-            self.data = pd.read_excel(data_source)
-        else:
-            self.data = data_source  # Assume it's already a DataFrame
-        
-        self._prepare_data()
-        self._calculate_metrics()
     
     def _prepare_data(self):
         """Prepare data for analysis"""
@@ -145,8 +135,21 @@ class BusinessAnalyzer:
                 'end': self.data[self.config['date_col']].max()
             }
         }
-    
-    def get_kpis(self, show: bool = False) -> Dict:
+
+    # PUBLIC METHODS
+    def load_data(self, data_source: str):
+        """Load and prepare data"""
+        if data_source.endswith('.csv'):
+            self.data = pd.read_csv(data_source)
+        elif data_source.endswith(('.xlsx', '.xls')):
+            self.data = pd.read_excel(data_source)
+        else:
+            self.data = data_source  # Assume it's already a DataFrame
+        
+        self._prepare_data()
+        self._calculate_metrics()
+        
+    def get_kpis(self, save: bool = False, out_dir: Optional[str] = None) -> Dict:
         """Get key performance indicators"""
         if self.revenue_metrics is None:
             return {}
@@ -173,14 +176,30 @@ class BusinessAnalyzer:
             'previous_period_revenue': previous_revenue
         }
         
-        if show:
-            print(f"\n💰 Revenue: {self.format_currency(return_kpis['total_revenue'])}")
-            print(f"📈 Growth: {return_kpis['revenue_growth']:.1f}%")
-            print(f"🛒 Transactions: {return_kpis['total_transactions']:,}")
+        kpi_str = []
+        kpi_str.append(f"\n💰 Revenue: {self.format_currency(return_kpis['total_revenue'])}")
+        kpi_str.append(f"📈 Growth: {return_kpis['revenue_growth']:.1f}%")
+        kpi_str.append(f"🛒 Transactions: {return_kpis['total_transactions']:,}")
+        kpi_str = "\n".join(kpi_str)
+        
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/business_analytics_kpi.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(kpi_str)
+
+            print(f"✅ KPIs exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(kpi_str)
+        
         return return_kpis
     
-    def get_alerts(self, show: bool = False) -> Dict:
+    def get_alerts(self, save: bool = False, out_dir: Optional[str] = None) -> Dict:
         """Get critical business alerts"""
         alerts = {
             'critical': [],
@@ -239,26 +258,43 @@ class BusinessAnalyzer:
                 'action': 'Urgent review of sales strategy needed'
             })
             
-        # Display alerts
-        if show:
-            if alerts['critical']:
-                print("🔴 CRITICAL ACTIONS REQUIRED:")
-                for alert in alerts['critical']:
-                    print(f"\n  {alert['message']}")
-                    print(f"  Impact: {alert['impact']}")
-                    print(f"  ➔ Action: {alert['action']}")
+            
+        alerts_str = []
+        if alerts['critical']:
+            alerts_str.append("🔴 CRITICAL ACTIONS REQUIRED:")
+            for alert in alerts['critical']:
+                alerts_str.append(f"\n  {alert['message']}")
+                alerts_str.append(f"  Impact: {alert['impact']}")
+                alerts_str.append(f"  ➔ Action: {alert['action']}")
 
-            if alerts['warning']:
-                print("\n🟡 WARNINGS:")
-                for alert in alerts['warning']:
-                    print(f"\n  {alert['message']}")
-                    print(f"  ➔ Action: {alert['action']}")
+        if alerts['warning']:
+            alerts_str.append("\n🟡 WARNINGS:")
+            for alert in alerts['warning']:
+                alerts_str.append(f"\n  {alert['message']}")
+                alerts_str.append(f"  ➔ Action: {alert['action']}")
 
-            if alerts['success']:
-                print("\n🟢 SUCCESS INDICATORS:")
-                for alert in alerts['success']:
-                    print(f"\n  {alert['message']}")
-                    print(f"  ➔ Next Step: {alert['action']}")
+        if alerts['success']:
+            alerts_str.append("\n🟢 SUCCESS INDICATORS:")
+            for alert in alerts['success']:
+                alerts_str.append(f"\n  {alert['message']}")
+                alerts_str.append(f"  ➔ Next Step: {alert['action']}")
+    
+        alerts_str = "\n".join(alerts_str)
+        
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/business_analytics_alerts.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(alerts_str)
+
+            print(f"✅ Alerts exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(alerts_str)
         
         return alerts
 
@@ -402,3 +438,4 @@ class BusinessAnalyzer:
         # Save to CSV
         summary_df.to_csv(save_path, index=False)
         print(f"✅ Executive summary exported to {save_path}")
+        

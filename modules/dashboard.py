@@ -19,7 +19,6 @@ warnings.filterwarnings('ignore')
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette("husl")
 
-
 class ExecutiveDashboard:
     """Create executive dashboard visualizations"""
     
@@ -28,8 +27,8 @@ class ExecutiveDashboard:
         self.analyzer = analyzer
         self.config = analyzer.config
         self.run_dt = analyzer.run_dt
-        self.out_dir = analyzer.out_dir
         self.run_time = analyzer.run_time
+        self.out_dir = analyzer.out_dir
         self.colors = {
             'primary': '#2E86AB',
             'success': '#52B788',
@@ -40,116 +39,7 @@ class ExecutiveDashboard:
         }
         self.dashboard = None
     
-    def create_full_dashboard(self, figsize=(20, 12), save = False, out_dir: Optional[str] = None):
-        """Create comprehensive executive dashboard"""
-        fig = plt.figure(figsize=figsize, facecolor='white')
-        gs = GridSpec(3, 4, figure=fig, hspace=0.3, wspace=0.3)
-        
-        # Title
-        fig.suptitle('Executive Business Intelligence Dashboard', 
-                    fontsize=24, fontweight='bold', y=0.98)
-        
-        # Get data
-        kpis = self.analyzer.get_kpis()
-        alerts = self.analyzer.get_alerts()
-        pareto = self.analyzer.get_pareto_insights()
-        inventory = self.analyzer.get_inventory_health()
-        peak_times = self.analyzer.get_peak_times()
-        
-        # 1. KPI Cards (top row)
-        self._create_kpi_cards(fig, gs[0, :], kpis)
-        
-        # 2. Revenue Concentration (left middle)
-        ax_pareto = fig.add_subplot(gs[1, :2])
-        self._create_pareto_chart(ax_pareto, pareto)
-        
-        # 3. Inventory Health (right middle)
-        ax_inventory = fig.add_subplot(gs[1, 2:])
-        self._create_inventory_gauge(ax_inventory, inventory)
-        
-        # 4. Alerts Panel (bottom left)
-        ax_alerts = fig.add_subplot(gs[2, :2])
-        self._create_alerts_panel(ax_alerts, alerts)
-        
-        # 5. Peak Times Heatmap (bottom right)
-        ax_peak = fig.add_subplot(gs[2, 2:])
-        self._create_peak_times_chart(ax_peak, peak_times)
-        
-        # Add timestamp
-        fig.text(0.99, 0.01, f'Generated: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")}',
-                ha='right', va='bottom', fontsize=8, style='italic', color='gray')
-        
-        plt.tight_layout()
-
-        # Store the figure in the instance for later use
-        self.dashboard = fig
-
-        if save:
-            # Get save path
-            save_path = out_dir or self.out_dir + f'/dashboard_executive.png'
-            fig.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"✅ Dashboard saved to '{save_path}'")
-
-        return fig
-    
-    def create_quick_summary(self, save: bool = False, out_dir: Optional[str] = None) -> str:
-        """Create a quick text summary for executives.
-
-        Behavior:
-        - If save is False: prints the summary to standard output and returns it.
-        - If save is True: writes the printed summary to the resolved save_path file
-          (creates directories if necessary) and returns the summary string.
-        """
-        kpis = self.analyzer.get_kpis()
-        alerts = self.analyzer.get_alerts()
-        pareto = self.analyzer.get_pareto_insights()
-        inventory = self.analyzer.get_inventory_health()
-
-        summary = []
-        summary.append("=" * 60)
-        summary.append("DASHBOARD SUMMARY")
-        summary.append("=" * 60)
-
-        # KPIs
-        summary.append("\n📊 KEY METRICS:")
-        summary.append(f"  • Total Revenue: {self.analyzer.format_currency(kpis['total_revenue'])}")
-        summary.append(f"  • Growth Rate: {kpis['revenue_growth']:.1f}%")
-        summary.append(f"  • Transactions: {kpis['total_transactions']:,}")
-
-        # Critical alerts
-        if alerts.get('critical'):
-            summary.append("\n🔴 CRITICAL ACTIONS:")
-            for alert in alerts.get('critical', []):
-                summary.append(f"  • {alert.get('message')}")
-                summary.append(f"    → {alert.get('action')}")
-
-        # Key insights
-        summary.append("\n💡 KEY INSIGHTS:")
-        summary.append(f"  • Top {pareto.get('top_products_pct', 0):.0f}% of products = {pareto.get('revenue_from_top_pct', 0):.1f}% of revenue")
-        summary.append(f"  • Inventory Health: {inventory.get('healthy_stock_pct', 0):.0f}% healthy")
-        summary.append(f"  • Dead Stock: {inventory.get('dead_stock_count', 0)} products")
-
-        summary.append("\n" + "=" * 60)
-
-        summary_str = "\n".join(summary)
-
-        if save:
-            # Resolve save path and ensure directory exists
-            save_path = out_dir or (self.out_dir + f'/dashboard_summary.txt')
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-            # Write printed output into file using redirect_stdout
-            with open(save_path, 'w', encoding='utf-8') as out:
-                with redirect_stdout(out):
-                    print(summary_str)
-
-            print(f"✅ Dashboard summary exported to {save_path}")
-        else:
-            # Print to normal stdout
-            print(summary_str)
-
-        return summary_str
-    
+    # PRIVATE METHODS
     def _create_kpi_cards(self, fig, gridspec, kpis):
         """Create KPI metric cards"""
         # gridspec may be a SubplotSpec (e.g. gs[0, :]) spanning the full top row.
@@ -392,4 +282,116 @@ class ExecutiveDashboard:
         ax.text(0.5, -0.15, peak_times.get('recommendation', ''), 
                transform=ax.transAxes, ha='center', va='top',
                fontsize=9, style='italic', color='gray')
+        
+    # PUBLIC METHODS
+    def create_full_dashboard(self, figsize=(20, 12), save = False, out_dir: Optional[str] = None):
+        """Create comprehensive executive dashboard"""
+        fig = plt.figure(figsize=figsize, facecolor='white')
+        gs = GridSpec(3, 4, figure=fig, hspace=0.3, wspace=0.3)
+        
+        # Title
+        fig.suptitle('Executive Business Intelligence Dashboard', 
+                    fontsize=24, fontweight='bold', y=0.98)
+        
+        # Get data
+        kpis = self.analyzer.get_kpis()
+        alerts = self.analyzer.get_alerts()
+        pareto = self.analyzer.get_pareto_insights()
+        inventory = self.analyzer.get_inventory_health()
+        peak_times = self.analyzer.get_peak_times()
+        
+        # 1. KPI Cards (top row)
+        self._create_kpi_cards(fig, gs[0, :], kpis)
+        
+        # 2. Revenue Concentration (left middle)
+        ax_pareto = fig.add_subplot(gs[1, :2])
+        self._create_pareto_chart(ax_pareto, pareto)
+        
+        # 3. Inventory Health (right middle)
+        ax_inventory = fig.add_subplot(gs[1, 2:])
+        self._create_inventory_gauge(ax_inventory, inventory)
+        
+        # 4. Alerts Panel (bottom left)
+        ax_alerts = fig.add_subplot(gs[2, :2])
+        self._create_alerts_panel(ax_alerts, alerts)
+        
+        # 5. Peak Times Heatmap (bottom right)
+        ax_peak = fig.add_subplot(gs[2, 2:])
+        self._create_peak_times_chart(ax_peak, peak_times)
+        
+        # Add timestamp
+        fig.text(0.99, 0.01, f'Generated: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")}',
+                ha='right', va='bottom', fontsize=8, style='italic', color='gray')
+        
+        plt.tight_layout()
+
+        # Store the figure in the instance for later use
+        self.dashboard = fig
+
+        if save:
+            # Get save path
+            save_path = out_dir or self.out_dir + f'/dashboard_executive.png'
+            fig.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"✅ Dashboard saved to '{save_path}'")
+
+        return fig
+    
+    def create_quick_summary(self, save: bool = False, out_dir: Optional[str] = None) -> str:
+        """Create a quick text summary for executives.
+
+        Behavior:
+        - If save is False: prints the summary to standard output and returns it.
+        - If save is True: writes the printed summary to the resolved save_path file
+          (creates directories if necessary) and returns the summary string.
+        """
+        kpis = self.analyzer.get_kpis()
+        alerts = self.analyzer.get_alerts()
+        pareto = self.analyzer.get_pareto_insights()
+        inventory = self.analyzer.get_inventory_health()
+
+        summary = []
+        summary.append("=" * 60)
+        summary.append("DASHBOARD SUMMARY")
+        summary.append("=" * 60)
+
+        # KPIs
+        summary.append("\n📊 KEY METRICS:")
+        summary.append(f"  • Total Revenue: {self.analyzer.format_currency(kpis['total_revenue'])}")
+        summary.append(f"  • Growth Rate: {kpis['revenue_growth']:.1f}%")
+        summary.append(f"  • Transactions: {kpis['total_transactions']:,}")
+
+        # Critical alerts
+        if alerts.get('critical'):
+            summary.append("\n🔴 CRITICAL ACTIONS:")
+            for alert in alerts.get('critical', []):
+                summary.append(f"  • {alert.get('message')}")
+                summary.append(f"    → {alert.get('action')}")
+
+        # Key insights
+        summary.append("\n💡 KEY INSIGHTS:")
+        summary.append(f"  • Top {pareto.get('top_products_pct', 0):.0f}% of products = {pareto.get('revenue_from_top_pct', 0):.1f}% of revenue")
+        summary.append(f"  • Inventory Health: {inventory.get('healthy_stock_pct', 0):.0f}% healthy")
+        summary.append(f"  • Dead Stock: {inventory.get('dead_stock_count', 0)} products")
+
+        summary.append("\n" + "=" * 60)
+
+        summary_str = "\n".join(summary)
+
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/dashboard_summary.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(summary_str)
+
+            print(f"✅ Dashboard summary exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(summary_str)
+
+        return summary_str
+    
         
