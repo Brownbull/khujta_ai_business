@@ -102,9 +102,6 @@ def complete_dashboard_workflow():
     # Export summary metrics
     analyzer.save_executive_summary()
 
-    # Export top products
-    analyzer.save_top_products()
-
     print(f"✅ Analysis complete!")
 
     return analyzer, dashboard, advanced

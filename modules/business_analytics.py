@@ -24,7 +24,7 @@ class BusinessAnalyzer:
         self.inventory_status = None
         self.revenue_metrics = None
         self.pareto = None
-        self.out_dir = out_dir or self._set_out_dir()
+        self.out_dir = (out_dir or self._set_out_dir())
         
         # Initialize run timestamp strings for unique file names
         now = datetime.now()
@@ -298,17 +298,18 @@ class BusinessAnalyzer:
         
         return alerts
 
-    def get_pareto_insights(self, show: bool = False) -> Dict:
+    def get_pareto_insights(self, top_products_count: int = 5, save: bool = False, out_dir: Optional[str] = None) -> Dict:
         """Get 80/20 analysis insights"""
         if self.product_analysis is None:
             return {}
         
-        twenty_percent = int(len(self.product_analysis) * self.config['top_products_threshold'])
-        top_products = self.product_analysis.iloc[:twenty_percent]
+        # Calculate Pareto insights
+        twenty_percent = int(len(self.product_analysis) * self.config['top_products_threshold']) # Top 20%
+        top_products = self.product_analysis.iloc[:twenty_percent] # Top 20% products by revenue
         
-        revenue_from_top = top_products[self.config['revenue_col']].sum()
-        total_revenue = self.product_analysis[self.config['revenue_col']].sum()
-        revenue_pct = (revenue_from_top / total_revenue) * 100
+        revenue_from_top = top_products[self.config['revenue_col']].sum() # Revenue from top 20%
+        total_revenue = self.product_analysis[self.config['revenue_col']].sum() # Total revenue
+        revenue_pct = (revenue_from_top / total_revenue) * 100 # Percentage of revenue from top 20%
         
         self.pareto = {
             'top_products_count': twenty_percent,
@@ -319,35 +320,41 @@ class BusinessAnalyzer:
             'concentration_level': 'High' if revenue_pct > 80 else 'Medium' if revenue_pct > 60 else 'Low'
         }
         
-        # Display insights
-        if show:
-            print(f"🎯 TOP INSIGHT: Your top {self.pareto['top_products_count']} products "
-                f"({self.pareto['top_products_pct']:.0f}% of catalog) generate "
-                f"{self.pareto['revenue_from_top_pct']:.1f}% of revenue!")
+        # Print insights
+        pareto_str = []
+        pareto_str.append(f"🎯 TOP INSIGHT: Your top {self.pareto['top_products_count']} products "
+            f"({self.pareto['top_products_pct']:.0f}% of catalog) generate "
+            f"{self.pareto['revenue_from_top_pct']:.1f}% of revenue!")
 
-            print(f"\nConcentration Risk Level: {self.pareto['concentration_level']}")
+        pareto_str.append(f"\nConcentration Risk Level: {self.pareto['concentration_level']}")
 
-            print("\n📋 Top 5 Revenue Generators:")
-            for i, product in enumerate(self.pareto['top_products_list'][:5], 1):
-                print(f"  {i}. {product['glosa']}: {self.format_currency(product['total'])}")
-            print(f"\n📊 80/20 Rule: Top {self.pareto['top_products_pct']:.0f}% = {self.pareto['revenue_from_top_pct']:.1f}% of revenue")
+        pareto_str.append("\n📋 Top {top_products_count} Revenue Generators:")
+        for i, product in enumerate(self.pareto['top_products_list'][:top_products_count], 1):
+            pareto_str.append(f"  {i}. {product['glosa']}: {self.format_currency(product['total'])}")
         
+        pareto_str.append(f"\n📊 80/20 Rule: Top {self.pareto['top_products_pct']:.0f}% = {self.pareto['revenue_from_top_pct']:.1f}% of revenue")
+        
+        pareto_str = "\n".join(pareto_str)
+        
+        # Save to file if needed
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/business_analytics_pareto.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(pareto_str)
+
+            print(f"✅ Dashboard summary exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(pareto_str)
+            
         return self.pareto
-    
-    def save_top_products(self, out_dir: Optional[str] = None):
-        """Save top products insights to CSV"""
-        if self.pareto is None:
-            self.pareto = self.get_pareto_insights()
-        top_products_df = pd.DataFrame(self.pareto['top_products_list'])
-        
-        # Get save path
-        save_path = out_dir or self.out_dir + f'/top_products.csv'
-        
-        # Save to CSV
-        top_products_df.to_csv(save_path, index=False)
-        print(f"✅ Top Products exported to {save_path}")
 
-    def get_inventory_health(self, show: bool = False) -> Dict:
+    def get_inventory_health(self, save: bool = False, out_dir: Optional[str] = None) -> Dict:
         """Get inventory health summary"""
         if self.inventory_status is None:
             return {}
@@ -364,18 +371,35 @@ class BusinessAnalyzer:
             'at_risk_products': self.inventory_status[self.inventory_status['status'] == 'Slowing'].to_dict('records')[:5]
         }
         
-        if show:
-            print(f"📊 Inventory Health Score: {inventory_return['healthy_stock_pct']:.0f}%")
-            print(f"\n⚠️ Dead Stock Alert: {inventory_return['dead_stock_count']} products")
+        # Print summary
+        inv_health_str = []
+        inv_health_str.append(f"📊 Inventory Health Score: {inventory_return['healthy_stock_pct']:.0f}%")
+        inv_health_str.append(f"\n⚠️ Dead Stock Alert: {inventory_return['dead_stock_count']} products")
 
-            if inventory_return['at_risk_products']:
-                print("\n🟡 Products At Risk (Slowing):")
-                for product in inventory_return['at_risk_products'][:3]:
-                    print(f"  • {product['glosa']}: {product['days_since_sale']} days since last sale")
+        if inventory_return['at_risk_products']:
+            inv_health_str.append("\n🟡 Products At Risk (Slowing):")
+            for product in inventory_return['at_risk_products'][:3]:
+                inv_health_str.append(f"  • {product['glosa']}: {product['days_since_sale']} days since last sale")
+        inv_health_str = "\n".join(inv_health_str)
+        
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/business_analytics_inventory_health.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(inv_health_str)
+
+            print(f"✅ Dashboard summary exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(inv_health_str)
         
         return inventory_return
     
-    def get_peak_times(self, show: bool = False) -> Dict:
+    def get_peak_times(self, save: bool = False, out_dir: Optional[str] = None) -> Dict:
         """Get peak business times"""
         if self.data is None or 'hour' not in self.data.columns:
             return {}
@@ -401,12 +425,28 @@ class BusinessAnalyzer:
         }
 
         # Display insights
-        if show:
-            print(f"⏰ Peak Performance Windows:")
-            print(f"  • Best Day: {peak_times_return['peak_day']}s")
-            print(f"  • Peak Hour: {peak_times_return['peak_hour']}:00")
-            print(f"  • Slowest Day: {peak_times_return['valley_day']}s")
-            print(f"\n💡 {peak_times_return['recommendation']}")
+        peaks_str = []
+        peaks_str.append(f"⏰ Peak Performance Windows:")
+        peaks_str.append(f"  • Best Day: {peak_times_return['peak_day']}s")
+        peaks_str.append(f"  • Peak Hour: {peak_times_return['peak_hour']}:00")
+        peaks_str.append(f"  • Slowest Day: {peak_times_return['valley_day']}s")
+        peaks_str.append(f"\n💡 {peak_times_return['recommendation']}")
+        peaks_str = "\n".join(peaks_str)
+        
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/business_analytics_peak_times.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(peaks_str)
+
+            print(f"✅ Dashboard summary exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(peaks_str)
 
         return peak_times_return
     
@@ -432,9 +472,10 @@ class BusinessAnalyzer:
         # Convert to DataFrame for easy CSV export
         summary_df = pd.DataFrame([summary])
         
-        # Get save path
-        save_path = out_dir or self.config['out_dir'] + f'/executive_summary.csv'
-
+        # Resolve save path and ensure directory exists
+        save_path = out_dir or (self.out_dir + f'/business_analytics_executive_summary.txt')
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        
         # Save to CSV
         summary_df.to_csv(save_path, index=False)
         print(f"✅ Executive summary exported to {save_path}")
