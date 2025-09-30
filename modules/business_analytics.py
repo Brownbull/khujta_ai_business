@@ -177,9 +177,20 @@ class BusinessAnalyzer:
             'previous_period_revenue': previous_revenue
         }
         
+        # Include period boundaries used for growth calculation
+        start_date = self.revenue_metrics['date_range']['start']
+        end_date = self.revenue_metrics['date_range']['end']
+        prev_start_str = pd.to_datetime(start_date).strftime('%Y-%m-%d')
+        prev_end_str = pd.to_datetime(mid_date).strftime('%Y-%m-%d')
+        curr_start_str = pd.to_datetime(mid_date).strftime('%Y-%m-%d')
+        curr_end_str = pd.to_datetime(end_date).strftime('%Y-%m-%d')
+
         kpi_str = []
-        kpi_str.append(f"\n💰 Revenue: {self.format_currency(return_kpis['total_revenue'])}")
+        kpi_str.append(f"\n📅 Periods considered for growth:")
+        kpi_str.append(f"  • Previous: {prev_start_str} -> {prev_end_str}")
+        kpi_str.append(f"  • Current:  {curr_start_str} -> {curr_end_str}")
         kpi_str.append(f"📈 Growth: {return_kpis['revenue_growth']:.1f}%")
+        kpi_str.append(f"\n💰 Revenue: {self.format_currency(return_kpis['total_revenue'])}")
         kpi_str.append(f"🛒 Transactions: {return_kpis['total_transactions']:,}")
         kpi_str = "\n".join(kpi_str)
         
