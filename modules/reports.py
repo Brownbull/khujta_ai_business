@@ -66,7 +66,7 @@ def weekly_comparison_report(analyzer, save: bool = False):
     # Save or print
     if save:
         # Resolve save path and ensure directory exists
-        save_path = out_dir + f'/reports_weekly_comparison.txt'
+        save_path = out_dir + f'/REPRT_weekly_comparison.txt'
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
         # Write printed output into file using redirect_stdout
@@ -181,7 +181,7 @@ def product_velocity_matrix(analyzer, save: bool = False):
     # Save or show
     if save:
         # Get save path
-        save_path = out_dir + f'/reports_product_velocity_matrix.png'
+        save_path = out_dir + f'/REPRT_product_velocity_matrix.png'
         fig.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"✅ Dashboard saved to '{save_path}'")
     else:

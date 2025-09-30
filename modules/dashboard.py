@@ -331,7 +331,7 @@ class ExecutiveDashboard:
 
         if save:
             # Get save path
-            save_path = (self.out_dir) + f'/dashboard_executive.png'
+            save_path = (self.out_dir) + f'/DASH_executive.png'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Save figure
@@ -384,7 +384,7 @@ class ExecutiveDashboard:
         # Save or print
         if save:
             # Resolve save path and ensure directory exists
-            save_path = (self.out_dir) + "/dashboard_summary.txt"
+            save_path = (self.out_dir) + "/DASH_summary.txt"
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
