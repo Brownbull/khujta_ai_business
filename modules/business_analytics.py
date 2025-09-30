@@ -24,15 +24,18 @@ class BusinessAnalyzer:
         self.inventory_status = None
         self.revenue_metrics = None
         self.pareto = None
-        self.out_dir = (out_dir or self._set_out_dir())
         
         # Initialize run timestamp strings for unique file names
         now = datetime.now()
         self.run_dt = now.strftime('%Y%m%d') # YYYYMMDD, e.g. '20250927'
         self.run_time = now.strftime('%H%M') # HHMM, e.g. '1435'
-
+        
+        # Prepare data if provided
         if data_source:
             self.load_data(data_source)
+        
+        # Prepare output directory
+        self.out_dir = (out_dir or self._set_out_dir())
     
     def _default_config(self) -> Dict:
         """Default configuration settings"""
@@ -57,9 +60,6 @@ class BusinessAnalyzer:
     def _set_out_dir(self) -> str:
         # Get save path if not defined
         output_dir = os.path.join(self.config['out_dir'], self.config['project_name'], f"{self.run_dt}_{self.run_time}")
-        if not os.path.exists(output_dir):
-            print(f"📂 Creating output directory: {output_dir}")
-            os.makedirs(output_dir, exist_ok=True)
         self.config['out_dir'] = output_dir
     
     def _prepare_data(self):
@@ -184,7 +184,7 @@ class BusinessAnalyzer:
         
         if save:
             # Resolve save path and ensure directory exists
-            save_path = out_dir or (self.out_dir + f'/business_analytics_kpi.txt')
+            save_path = (out_dir or self.out_dir) + f'/business_analytics_kpi.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -283,7 +283,7 @@ class BusinessAnalyzer:
         
         if save:
             # Resolve save path and ensure directory exists
-            save_path = out_dir or (self.out_dir + f'/business_analytics_alerts.txt')
+            save_path = (out_dir or self.out_dir) + f'/business_analytics_alerts.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -339,7 +339,7 @@ class BusinessAnalyzer:
         # Save to file if needed
         if save:
             # Resolve save path and ensure directory exists
-            save_path = out_dir or (self.out_dir + f'/business_analytics_pareto.txt')
+            save_path = (out_dir or self.out_dir) + f'/business_analytics_pareto.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -384,7 +384,7 @@ class BusinessAnalyzer:
         
         if save:
             # Resolve save path and ensure directory exists
-            save_path = out_dir or (self.out_dir + f'/business_analytics_inventory_health.txt')
+            save_path = (out_dir or self.out_dir) + f'/business_analytics_inventory_health.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -435,7 +435,7 @@ class BusinessAnalyzer:
         
         if save:
             # Resolve save path and ensure directory exists
-            save_path = out_dir or (self.out_dir + f'/business_analytics_peak_times.txt')
+            save_path = (out_dir or self.out_dir) + f'/business_analytics_peak_times.txt'
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             # Write printed output into file using redirect_stdout
@@ -457,7 +457,7 @@ class BusinessAnalyzer:
         else:
             return f"${value:,.2f}"
         
-    def save_executive_summary(self, out_dir: Optional[str] = None):
+    def save_executive_summary(self, save: bool = False, out_dir: Optional[str] = None):
         """Save executive summary to CSV"""
         summary = {
             'Date': self.config['analysis_date'],
@@ -472,11 +472,13 @@ class BusinessAnalyzer:
         # Convert to DataFrame for easy CSV export
         summary_df = pd.DataFrame([summary])
         
-        # Resolve save path and ensure directory exists
-        save_path = out_dir or (self.out_dir + f'/business_analytics_executive_summary.txt')
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        
-        # Save to CSV
-        summary_df.to_csv(save_path, index=False)
-        print(f"✅ Executive summary exported to {save_path}")
-        
+        # Save or print
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = (out_dir or self.out_dir) + f'/business_analytics_executive_summary.txt'
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            summary_df.to_csv(save_path, index=False)
+            print(f"✅ Executive summary exported to {save_path}")
+

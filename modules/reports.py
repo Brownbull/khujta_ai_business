@@ -1,9 +1,11 @@
 from typing import Optional
 from contextlib import redirect_stdout
-def weekly_comparison_report(analyzer, save_path: Optional[str] = None):
+import os
+def weekly_comparison_report(analyzer, save: bool = False):
     import pandas as pd
     """Generate week-over-week comparison"""
     data = analyzer.data
+    out_dir = analyzer.out_dir
     
     # Get last two weeks
     data['week'] = pd.to_datetime(data[analyzer.config['date_col']]).dt.isocalendar().week # Extract week number
@@ -60,33 +62,32 @@ def weekly_comparison_report(analyzer, save_path: Optional[str] = None):
         report_lines.append(f"  Change:        {color} {arrow} {abs(changes[metric]):.2f}%")
     
     report_str = "\n".join(report_lines)
+    
+    # Save or print
+    if save:
+        # Resolve save path and ensure directory exists
+        save_path = out_dir + f'/reports_weekly_comparison.txt'
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-    print(report_str)
-    if not save_path:
-        # Save report to text file
-        import os
-        # Get save path if not defined
-        if not save_path:
-            output_dir = analyzer.config['output_path'] + analyzer.config['project_name']
-            if not os.path.exists(output_dir):
-                print(f"📂 Creating output directory: {output_dir}")
-                os.makedirs(output_dir, exist_ok=True)
-            save_path = output_dir + f'/weekly_comparison_{analyzer.run_dt}_{analyzer.run_time}.txt'
-        
-        # Save to text
-    with open(save_path, 'w', encoding='utf-8') as out:
-        with redirect_stdout(out):
-            print(report_str)
-                
-    print(f"\n✅ Weekly comparison report exported to {save_path}")
+        # Write printed output into file using redirect_stdout
+        with open(save_path, 'w', encoding='utf-8') as out:
+            with redirect_stdout(out):
+                print(report_str)
 
+        print(f"✅ Dashboard summary exported to {save_path}")
+    else:
+        # Print to normal stdout
+        print(report_str)
+    
     return metrics, changes
 
-def product_velocity_matrix(analyzer, save_path: Optional[str] = None):
+def product_velocity_matrix(analyzer, save: bool = False):
     """Create product velocity matrix (revenue vs units sold)"""
     import matplotlib.pyplot as plt
     import matplotlib.patheffects as pe
     from matplotlib.ticker import FuncFormatter
+    
+    out_dir = analyzer.out_dir
     
     # Get product metrics
     products = analyzer.product_analysis.head(20) # Top 20 products by revenue
@@ -177,19 +178,13 @@ def product_velocity_matrix(analyzer, save_path: Optional[str] = None):
         # Add a light stroke to text to increase readability over markers
         txt.set_path_effects([pe.withStroke(linewidth=1, foreground='white')])
     
-    if not save_path:
-        # Save report to text file
-        import os
-        # Get save path if not defined
-        if not save_path:
-            output_dir = analyzer.config['output_path'] + analyzer.config['project_name']
-            if not os.path.exists(output_dir):
-                print(f"📂 Creating output directory: {output_dir}")
-                os.makedirs(output_dir, exist_ok=True)
-            save_path = output_dir + f'/product_velocity_{analyzer.run_dt}_{analyzer.run_time}.png'
-        
-    # Save figure
-    fig.savefig(f"{save_path}", dpi=300, bbox_inches='tight')
-    print(f"✅ Product velocity matrix exported to {save_path}")
-                
+    # Save or show
+    if save:
+        # Get save path
+        save_path = out_dir + f'/reports_product_velocity_matrix.png'
+        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"✅ Dashboard saved to '{save_path}'")
+    else:
+        plt.show()
+    
     return fig
