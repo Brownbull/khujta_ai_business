@@ -367,7 +367,7 @@ class ExecutiveDashboard:
                 summary.append(f"  • {alert.get('message')}")
                 summary.append(f"    → {alert.get('action')}")
 
-        # Key insights
+        # Prepare output string
         summary.append("\n💡 KEY INSIGHTS:")
         summary.append(f"  • Top {pareto.get('top_products_pct', 0):.0f}% of products = {pareto.get('revenue_from_top_pct', 0):.1f}% of revenue")
         summary.append(f"  • Inventory Health: {inventory.get('healthy_stock_pct', 0):.0f}% healthy")
@@ -377,6 +377,7 @@ class ExecutiveDashboard:
 
         summary_str = "\n".join(summary)
 
+        # Save or print
         if save:
             # Resolve save path and ensure directory exists
             save_path = out_dir or (self.out_dir + f'/dashboard_summary.txt')

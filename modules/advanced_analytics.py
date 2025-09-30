@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from contextlib import redirect_stdout
 import os
 from scipy import stats
 from datetime import datetime, timedelta
@@ -26,7 +27,7 @@ class AdvancedAnalytics:
         self.data = analyzer.data
         self.trend_analysis = None
     
-    def forecast_revenue(self, days_ahead: int = 30, show: bool = False) -> Dict:
+    def forecast_revenue(self, days_ahead: int = 30, save: bool = False, out_dir: Optional[str] = None) -> Dict:
         """Simple revenue forecasting using moving averages"""
         if self.data is None:
             return {}
@@ -57,16 +58,34 @@ class AdvancedAnalytics:
             'trend': 'increasing' if ma_7.iloc[-1] > ma_30.iloc[-1] else 'decreasing'
         }
         
-        if show:
-            print(f"📈 Revenue Forecast for next {days_ahead} days:")
-            print(f" - Daily Average: {self.analyzer.format_currency(last_avg)}")
-            print(f" - Total Forecast: {self.analyzer.format_currency(forecast_total)}")
-            print(f" - 95% Confidence Interval: ({self.analyzer.format_currency(max(0, confidence_low))}, {self.analyzer.format_currency(confidence_high)})")
-            print(f" - Trend: {return_forecast['trend'].capitalize()}")
+        # Prepare output string
+        forecast_str = []
+        forecast_str.append(f"📈 Revenue Forecast for next {days_ahead} days:")
+        forecast_str.append(f" - Daily Average: {self.analyzer.format_currency(last_avg)}")
+        forecast_str.append(f" - Total Forecast: {self.analyzer.format_currency(forecast_total)}")
+        forecast_str.append(f" - 95% Confidence Interval: ({self.analyzer.format_currency(max(0, confidence_low))}, {self.analyzer.format_currency(confidence_high)})")
+        forecast_str.append(f" - Trend: {return_forecast['trend'].capitalize()}")
+        forecast_str = "\n".join(forecast_str)
+        
+        # Save or print
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/advanced_forecast_revenue.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(forecast_str)
+
+            print(f"✅ Dashboard summary exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(forecast_str)
  
         return return_forecast
 
-    def find_cross_sell_opportunities(self, min_support: float = 0.01, limit: int = 3, show: bool = False) -> List[Dict]:
+    def find_cross_sell_opportunities(self, min_support: float = 0.01, limit: int = 3, save: bool = False, out_dir: Optional[str] = None) -> List[Dict]:
         """Find products frequently bought together"""
         if self.data is None:
             return []
@@ -112,17 +131,36 @@ class AdvancedAnalytics:
                 if len(opportunities) >= limit:
                     break  # Stop when limit is reached
 
-        if show:
-            if not opportunities:
-                print("ℹ️ No significant cross-sell opportunities found.")
-                return []
-            print("🛍️ Cross-Sell Opportunities:")
-            for opp in opportunities:
-                print(f"🛍️ Cross-Sell Opportunity: {opp['product_1'][:30]} & {opp['product_2'][:30]}")
-                print(f" - Frequency: {opp['frequency']}")
-                print(f" - Support: {opp['support']:.2f}%")
-                print(f" - Recommendation: {opp['recommendation']}")
-                print()
+        # Prepare output string
+        xsell_str = []
+        if not opportunities:
+            xsell_str.append("ℹ️ No significant cross-sell opportunities found.")
+            return []
+        xsell_str.append("🛍️ Cross-Sell Opportunities:")
+        for opp in opportunities:
+            xsell_str.append(f"🛍️ Cross-Sell Opportunity: {opp['product_1'][:30]} & {opp['product_2'][:30]}")
+            xsell_str.append(f" - Frequency: {opp['frequency']}")
+            xsell_str.append(f" - Support: {opp['support']:.2f}%")
+            xsell_str.append(f" - Recommendation: {opp['recommendation']}")
+            xsell_str.append()
+            
+        xsell_str = "\n".join(xsell_str)
+        
+        # Save or print
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/advanced_cross_sell_opportunities.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(xsell_str)
+
+            print(f"✅ Dashboard summary exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(xsell_str)
 
         return opportunities
     
@@ -195,7 +233,7 @@ class AdvancedAnalytics:
             'avg_items_per_transaction': trans_analysis[self.config['product_col']].mean()
         }
     
-    def anomaly_detection(self, limit: int = 3, show: bool = False) -> List[Dict]:
+    def anomaly_detection(self, limit: int = 3, save: bool = False, out_dir: Optional[str] = None) -> List[Dict]:
         """Detect anomalies in sales patterns"""
         anomalies = []
         
@@ -236,18 +274,36 @@ class AdvancedAnalytics:
                             'severity': 'medium',
                             'description': f'Unusual pricing detected for product {product}'
                         })
-                    
-        if show:
-            if not anomalies:
-                print("ℹ️ No anomalies detected.")
-            else:
-                print("⚠️ Anomalies Detected:")
-                for anomaly in anomalies:
-                    print(f"   • {anomaly['description']}")  
+        
+        # Print anomalies
+        anomalies_str = []            
+        if not anomalies:
+            anomalies_str.append("ℹ️ No anomalies detected.")
+        else:
+            anomalies_str.append("⚠️ Anomalies Detected:")
+            for anomaly in anomalies:
+                anomalies_str.append(f"   • {anomaly['description']}")  
+        anomalies_str = "\n".join(anomalies_str)
+        
+        # Save or print
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/advanced_anomaly_detection.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(anomalies_str)
+
+            print(f"✅ Dashboard summary exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(anomalies_str)
 
         return anomalies
     
-    def create_trend_analysis(self, figsize=(15, 10), out_dir: Optional[str] = None):
+    def create_trend_analysis(self, figsize=(15, 10), save: bool = False, out_dir: Optional[str] = None) -> plt.Figure:
         """Create comprehensive trend analysis visualization"""
         fig, axes = plt.subplots(2, 2, figsize=figsize)
         fig.suptitle('Business Trend Analysis', fontsize=16, fontweight='bold')
@@ -321,28 +377,15 @@ class AdvancedAnalytics:
         
         self.trend_analysis = fig
         
-        # Get save path
-        save_path = out_dir or self.out_dir + f'/trend_analysis.png'
+        if save:
+            # Get save path
+            save_path = out_dir or self.out_dir + f'/trend_analysis.png'
+            fig.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"✅ Dashboard saved to '{save_path}'")
 
-        fig.savefig(f"{save_path}/trend_analysis.png", dpi=300, bbox_inches='tight')
-        print(f"✅ Trend analysis saved to '{save_path}/trend_analysis.png'")
-        
         return fig
     
-    def save_trend_analysis(self, out_dir: Optional[str] = None):
-        if self.trend_analysis is None:
-            self.create_trend_analysis()
-        
-        # Get save path if not defined
-        save_path = out_dir or self.out_dir + f'/trend_analysis.png'
-        
-        # Save the figure
-        self.trend_analysis.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✅ Trend analysis exported to '{save_path}'")
-        plt.close(self.trend_analysis)
-        return None
-    
-    def generate_recommendations(self, show: bool = False) -> List[Dict]:
+    def generate_recommendations(self, save: bool = False, out_dir: Optional[str] = None) -> List[Dict]:
         """Generate AI-powered recommendations based on analysis"""
         recommendations = []
         
@@ -403,16 +446,33 @@ class AdvancedAnalytics:
         
         return_recommendations = sorted(recommendations, key=lambda x: 0 if x['priority'] == 'HIGH' else 1 if x['priority'] == 'MEDIUM' else 2)
         
-        if show:
-            if not return_recommendations:
-                print("ℹ️ No actionable recommendations found.")
-            else:
-                print("\n💡 TOP RECOMMENDATIONS:")
-                for i, rec in enumerate(return_recommendations[:3], 1):
-                    print(f"\n{i}. [{rec['priority']}] {rec['title']}")
-                    print(f"   {rec['description']}")
-                    print(f"   Action: {rec['action']}")
-                    print(f"   Impact: {rec['expected_impact']} | Timeline: {rec['timeframe']}")
+        recmm_str = []
+        
+        if not return_recommendations:
+            recmm_str.append("ℹ️ No actionable recommendations found.")
+        else:
+            recmm_str.append("\n💡 TOP RECOMMENDATIONS:")
+            for i, rec in enumerate(return_recommendations[:3], 1):
+                recmm_str.append(f"\n{i}. [{rec['priority']}] {rec['title']}")
+                recmm_str.append(f"   {rec['description']}")
+                recmm_str.append(f"   Action: {rec['action']}")
+                recmm_str.append(f"   Impact: {rec['expected_impact']} | Timeline: {rec['timeframe']}")
+        recmm_str = "\n".join(recmm_str)
+        
+        if save:
+            # Resolve save path and ensure directory exists
+            save_path = out_dir or (self.out_dir + f'/advanced_recommendations.txt')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Write printed output into file using redirect_stdout
+            with open(save_path, 'w', encoding='utf-8') as out:
+                with redirect_stdout(out):
+                    print(recmm_str)
+
+            print(f"✅ Dashboard summary exported to {save_path}")
+        else:
+            # Print to normal stdout
+            print(recmm_str)
             
         return return_recommendations
     
