@@ -44,27 +44,31 @@ class AdvancedAnalytics:
             return {}
 
         # Group by date
-        daily_revenue = self.analyzer.data.groupby(
-            pd.Grouper(key=self.analyzer.config['date_col'], freq='D')
-        )[self.analyzer.config['revenue_col']].sum()
+        daily_data = self.analyzer.data.groupby(pd.Grouper(key=self.analyzer.config['date_col'], freq='D')) # Group by date
+        daily_revenue = daily_data[self.analyzer.config['revenue_col']].sum() # Sum revenue per day
 
         # Calculate moving averages
-        ma_7 = daily_revenue.rolling(window=7, min_periods=1).mean()
-        ma_30 = daily_revenue.rolling(window=30, min_periods=1).mean()
+        ma_7 = daily_revenue.rolling(window=7, min_periods=1).mean() # 7-day MA
+        ma_30 = daily_revenue.rolling(window=30, min_periods=1).mean() # 30-day MA
 
         # Simple forecast (using last 7-day average)
-        last_avg = ma_7.iloc[-1] if len(ma_7) > 0 else 0
-        forecast_total = last_avg * days_ahead
+        last_avg_daily = ma_7.iloc[-1] if len(ma_7) > 0 else 0 # Last 7-day MA
+        forecast_total = last_avg_daily * days_ahead # Forecast total for next period
 
+        z_score = 1.96 # 95% confidence interval z-score
         # Calculate confidence interval (simplified)
-        std_dev = daily_revenue.std()
-        confidence_low = (last_avg - 1.96 * std_dev) * days_ahead
-        confidence_high = (last_avg + 1.96 * std_dev) * days_ahead
+        std_dev = daily_revenue.std() # Standard deviation of daily revenue
+        confidence_low_daily = (last_avg_daily - z_score * std_dev) # 95% CI lower bound
+        confidence_high_daily = (last_avg_daily + z_score * std_dev) # 95% CI upper bound
+        confidence_low = confidence_low_daily * days_ahead # Total lower bound
+        confidence_high = confidence_high_daily * days_ahead # Total upper bound
 
         return {
-            'forecast_daily_avg': last_avg,
+            'forecast_daily_avg': last_avg_daily,
+            'daily_std_dev': std_dev,
+            'confidence_interval_daily': (max(0, confidence_low_daily), confidence_high_daily),
             'forecast_total': forecast_total,
-            'confidence_interval': (max(0, confidence_low), confidence_high),
+            'confidence_interval_total': (max(0, confidence_low), confidence_high),
             'days_ahead': days_ahead,
             'trend': 'increasing' if ma_7.iloc[-1] > ma_30.iloc[-1] else 'decreasing'
         }
@@ -300,9 +304,13 @@ class AdvancedAnalytics:
 
         forecast_str = []
         forecast_str.append(f"📈 Revenue Forecast for next {days_ahead} days:")
-        forecast_str.append(f" - Daily Average: {self.analyzer.format_currency(forecast['forecast_daily_avg'])}")
-        forecast_str.append(f" - Total Forecast: {self.analyzer.format_currency(forecast['forecast_total'])}")
-        forecast_str.append(f" - 95% Confidence Interval: ({self.analyzer.format_currency(forecast['confidence_interval'][0])}, {self.analyzer.format_currency(forecast['confidence_interval'][1])})")
+        forecast_str.append(f" Daily:")
+        forecast_str.append(f" - Average: {self.analyzer.format_currency(forecast['forecast_daily_avg'])}")
+        forecast_str.append(f" - Std Dev: {self.analyzer.format_currency(forecast['daily_std_dev'])}")
+        forecast_str.append(f" - 95% Confidence Interval: ({self.analyzer.format_currency(forecast['confidence_interval_daily'][0])}, {self.analyzer.format_currency(forecast['confidence_interval_daily'][1])})")
+        forecast_str.append(f" Total:")
+        forecast_str.append(f" - Forecast: {self.analyzer.format_currency(forecast['forecast_total'])}")
+        forecast_str.append(f" - 95% Confidence Interval: ({self.analyzer.format_currency(forecast['confidence_interval_total'][0])}, {self.analyzer.format_currency(forecast['confidence_interval_total'][1])})")
         forecast_str.append(f" - Trend: {forecast['trend'].capitalize()}")
 
         return "\n".join(forecast_str)

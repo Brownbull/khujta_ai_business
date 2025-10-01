@@ -36,6 +36,8 @@ class Business:
 
         # Run timestamp for unique file names
         now = datetime.now()
+        self.min_dt = None
+        self.max_dt = None
         self.run_dt = now.strftime('%Y%m%d')  # YYYYMMDD
         self.run_time = now.strftime('%H%M')  # HHMM
 
@@ -45,7 +47,7 @@ class Business:
         # Load data if provided
         if data_source:
             self.load_data(data_source)
-            print(f"Business initialized with data from: {data_source}")
+            print(f"Business initialized with data from: {data_source} {self.data.shape if self.data is not None else ''}")
 
         print(f"Output directory: {self.out_dir}")
 
@@ -101,6 +103,11 @@ class Business:
                 self.data[self.config['date_col']],
                 errors='coerce'
             )
+        
+        # Get range of dates
+        self.min_dt = self.data[self.config['date_col']].min()
+        self.max_dt = self.data[self.config['date_col']].max()
+        print(f"Data date range: {self.min_dt.date()} to {self.max_dt.date()}")
 
         # Add time-based columns if they don't exist
         if 'hour' not in self.data.columns and 'inith' in self.data.columns:

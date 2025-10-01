@@ -224,12 +224,13 @@ class BusinessAnalyzer(Business):
         if self.inventory is None:
             return {}
 
-        status_summary = self.inventory['status'].value_counts().to_dict()
-        dead_stock = self.inventory[self.inventory['status'].isin(['Dead', 'Zombie'])]
+        status_summary = self.inventory['status'].value_counts().to_dict() # Status distribution
+        dead_stock = self.inventory[self.inventory['status'].isin(['Dead', 'Zombie'])] # Dead stock count
 
         inventory_health = {
             'status_distribution': status_summary,
             'dead_stock_count': len(dead_stock),
+            'dead_stock_products': dead_stock.to_dict('records'),
             'healthy_stock_pct': (status_summary.get('Hot', 0) + status_summary.get('Active', 0)) / len(self.inventory) * 100,
             'at_risk_products': self.inventory[self.inventory['status'] == 'Slowing'].to_dict('records')[:5]
         }
@@ -390,7 +391,12 @@ class BusinessAnalyzer(Business):
             inv_health_str.append("\n🟡 Products At Risk (Slowing):")
             for product in inventory_health['at_risk_products'][:3]:
                 inv_health_str.append(f"  • {product[self.config['description_col']]}: {product['days_since_sale']} days since last sale")
-
+        
+        if inventory_health['dead_stock_count'] > 0:
+            inv_health_str.append("\n🔴 Dead Stock Examples:")
+            for product in inventory_health['dead_stock_products'][:3]:
+                inv_health_str.append(f"  • {product[self.config['description_col']]}: {product['days_since_sale']} days since last sale")
+        
         return "\n".join(inv_health_str)
 
     def print_peak_times(self) -> str:
