@@ -1,177 +1,125 @@
 """
 Business Analytics Core Module
-Main analytics engine for executive dashboards
+Core metrics calculations for Business class
 """
 
-from matplotlib.pylab import pareto
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
-from contextlib import redirect_stdout
+from typing import Dict
 import warnings
-import os
 warnings.filterwarnings('ignore')
 
-class BusinessAnalyzer:
-    """Main orchestrator for business analytics"""
-    def __init__(self, data_source: str = None, config: Dict = None):
-        """Initialize the analyzer with data and configuration"""
-        self.config = config or self._default_config()
-        self.data = None
-        
-        # Initialize analysis results
-        self.product_analysis = None
-        self.revenue_metrics = None
-        
-        self.kpis = None
-        self.alerts = None
-        self.pareto = None
-        self.inventory = None
-        
-        # Initialize run timestamp strings for unique file names
-        now = datetime.now()
-        self.run_dt = now.strftime('%Y%m%d') # YYYYMMDD, e.g. '20250927'
-        self.run_time = now.strftime('%H%M') # HHMM, e.g. '1435'
-        
-        # Prepare data if provided
-        if data_source:
-            self.load_data(data_source)
-        
-        # Prepare output directory
-        self.out_dir = self._set_out_dir()
-        print(f"Output directory set to: {self.out_dir}")
-    
-    def _default_config(self) -> Dict:
-        """Default configuration settings"""
-        return {
-            'project_name': 'Buenacarne',
-            'analysis_date': datetime.now(),
-            'top_products_threshold': 0.2,
-            'dead_stock_days': 30,
-            'currency_format': 'CLP',
-            'language': 'EN',
-            'date_col': 'fecha',
-            'product_col': 'producto',
-            'description_col': 'glosa',
-            'revenue_col': 'total',
-            'quantity_col': 'cantidad',
-            'transaction_col': 'trans_id',
-            'cost_col': 'costo',
-            'out_dir' : 'outputs' 
-        }
+from modules.business import Business
 
-    # INTERNAL METHODS
-    def _set_out_dir(self) -> str:
-        # Get save path if not defined
-        output_dir = os.path.join(self.config['out_dir'], self.config['project_name'], f"{self.run_dt}_{self.run_time}")
-        return output_dir
-    
-    def _prepare_data(self):
-        """Prepare data for analysis"""
-        # Convert date column
-        if self.config['date_col'] in self.data.columns:
-            self.data[self.config['date_col']] = pd.to_datetime(
-                self.data[self.config['date_col']], 
-                errors='coerce'
-            )
-        
-        # Add time-based columns if they don't exist
-        if 'hour' not in self.data.columns and 'inith' in self.data.columns:
-            self.data['hour'] = self.data['inith']
-        
-        if 'weekday' not in self.data.columns and self.config['date_col'] in self.data.columns:
-            self.data['weekday'] = self.data[self.config['date_col']].dt.day_name()
-            self.data['weekday_num'] = self.data[self.config['date_col']].dt.dayofweek
-    
-    def _calculate_metrics(self):
+
+class BusinessAnalyzer(Business):
+    """
+    Analytics engine that extends Business class.
+    Inherits all data, config, and metrics from Business and adds calculation methods.
+    """
+
+    def __init__(self, data_source: str = None, config: Dict = None):
+        """
+        Initialize analyzer by calling parent Business constructor
+
+        Args:
+            data_source: Path to data file or DataFrame
+            config: Configuration dictionary
+        """
+        # Initialize parent Business class
+        super().__init__(data_source=data_source, config=config)
+
+        # Calculate all base metrics if data is loaded
+        if self.data is not None:
+            self.calculate_all_metrics()
+
+        print(f"BusinessAnalyzer initialized for project: {self.config['project_name']}")
+
+    # METRIC CALCULATION METHODS
+    def calculate_all_metrics(self):
         """Calculate all base metrics"""
-        self._calculate_product_metrics()
-        self._calculate_inventory_metrics()
-        self._calculate_revenue_metrics()
-    
-    def _calculate_product_metrics(self):
+        self.calculate_product_metrics()
+        self.calculate_inventory_metrics()
+        self.calculate_revenue_metrics()
+        print("✓ All base metrics calculated")
+
+    def calculate_product_metrics(self):
         """Calculate product-level metrics"""
+        if self.data is None:
+            return
+
         self.product_analysis = self.data.groupby(self.config['product_col']).agg({
-            self.config['description_col']: 'first',
-            self.config['revenue_col']: 'sum',
-            self.config['quantity_col']: 'sum',
-            self.config['transaction_col']: 'count'
+            self.config['description_col']: 'first', # Use first description
+            self.config['revenue_col']: 'sum', # Total revenue
+            self.config['quantity_col']: 'sum', # Total quantity sold
+            self.config['transaction_col']: 'count' # Number of transactions
         }).sort_values(self.config['revenue_col'], ascending=False)
-        
+
         # Add cumulative metrics
-        self.product_analysis['revenue_cum'] = self.product_analysis[self.config['revenue_col']].cumsum()
-        total_revenue = self.product_analysis[self.config['revenue_col']].sum()
-        self.product_analysis['revenue_pct_cum'] = 100 * self.product_analysis['revenue_cum'] / total_revenue
-        
+        self.product_analysis['revenue_cum'] = self.product_analysis[self.config['revenue_col']].cumsum() # Cumulative revenue
+        total_revenue = self.product_analysis[self.config['revenue_col']].sum() # Total revenue
+        self.product_analysis['revenue_pct_cum'] = 100 * self.product_analysis['revenue_cum'] / total_revenue # Cumulative revenue %
+
         # Identify top products
-        threshold_idx = int(len(self.product_analysis) * self.config['top_products_threshold'])
-        self.product_analysis['is_top_product'] = False
-        self.product_analysis.iloc[:threshold_idx, self.product_analysis.columns.get_loc('is_top_product')] = True
-    
-    def _calculate_inventory_metrics(self):
+        threshold_idx = int(len(self.product_analysis) * self.config['top_products_threshold']) # Index for top products
+        self.product_analysis['is_top_product'] = False # Initialize column
+        self.product_analysis.iloc[:threshold_idx, self.product_analysis.columns.get_loc('is_top_product')] = True # Set top products to True
+
+    def calculate_inventory_metrics(self):
         """Calculate inventory health metrics"""
+        if self.data is None:
+            return
+
         last_sale = self.data.groupby(self.config['product_col']).agg({
-            self.config['date_col']: 'max',
-            self.config['description_col']: 'first'
+            self.config['date_col']: 'max', # Last sale date
+            self.config['description_col']: 'first' # Product description
         }).reset_index()
-        
+
         analysis_date = pd.Timestamp(self.config['analysis_date'])
         last_sale['days_since_sale'] = (analysis_date - last_sale[self.config['date_col']]).dt.days
-        
+
         # Categorize inventory status
         last_sale['status'] = pd.cut(
             last_sale['days_since_sale'],
             bins=[0, 7, 30, 60, 90, 365, 9999],
             labels=['Hot', 'Active', 'Slowing', 'Cold', 'Dead', 'Zombie']
         )
-        
+
         self.inventory = last_sale
-    
-    def _calculate_revenue_metrics(self):
+
+    def calculate_revenue_metrics(self):
         """Calculate revenue-based metrics"""
+        if self.data is None:
+            return
+
+        date_range = self.get_date_range()
+
         self.revenue_metrics = {
-            'total_revenue': self.data[self.config['revenue_col']].sum(),
-            'total_transactions': self.data[self.config['transaction_col']].nunique(),
-            'avg_transaction_value': self.data.groupby(self.config['transaction_col'])[self.config['revenue_col']].sum().mean(),
-            'total_products': self.data[self.config['product_col']].nunique(),
-            'date_range': {
-                'start': self.data[self.config['date_col']].min(),
-                'end': self.data[self.config['date_col']].max()
-            }
+            'total_revenue': self.data[self.config['revenue_col']].sum(), # Total revenue
+            'total_transactions': self.data[self.config['transaction_col']].nunique(), # Unique transactions
+            'avg_transaction_value': self.data.groupby(self.config['transaction_col'])[self.config['revenue_col']].sum().mean(), # Average transaction value
+            'total_products': self.data[self.config['product_col']].nunique(), # Unique products sold
+            'date_range': date_range # Date range {start, end}
         }
 
-    # PUBLIC METHODS
-    def load_data(self, data_source: str):
-        """Load and prepare data"""
-        if data_source.endswith('.csv'):
-            self.data = pd.read_csv(data_source)
-        elif data_source.endswith(('.xlsx', '.xls')):
-            self.data = pd.read_excel(data_source)
-        else:
-            self.data = data_source  # Assume it's already a DataFrame
-        
-        self._prepare_data()
-        self._calculate_metrics()
-        
-    def set_kpis(self) -> Dict:
-        """Get key performance indicators"""
+    def calculate_kpis(self) -> Dict:
+        """Calculate key performance indicators"""
         if self.revenue_metrics is None:
-            print("@set_kpis: Revenue metrics not calculated yet.")
+            print("@calculate_kpis: Revenue metrics not calculated yet.")
             return {}
-        
-        # Calculate period comparisons if we have enough data
-        mid_date = self.revenue_metrics['date_range']['start'] + \
-                (self.revenue_metrics['date_range']['end'] - self.revenue_metrics['date_range']['start']) / 2
-        
-        current_period = self.data[self.data[self.config['date_col']] >= mid_date] # Current period is the latter half
-        previous_period = self.data[self.data[self.config['date_col']] < mid_date] # Previous period is the first half
-        
-        current_revenue = current_period[self.config['revenue_col']].sum() # Revenue in current period
-        previous_revenue = previous_period[self.config['revenue_col']].sum() # Revenue in previous period
-        
-        growth_rate = ((current_revenue - previous_revenue) / previous_revenue * 100) if previous_revenue > 0 else 0 # Growth rate calculation
-        
+
+        date_range = self.revenue_metrics['date_range']
+
+        # Calculate period comparisons
+        mid_date = date_range['start'] + (date_range['end'] - date_range['start']) / 2
+
+        current_period = self.data[self.data[self.config['date_col']] >= mid_date]
+        previous_period = self.data[self.data[self.config['date_col']] < mid_date]
+
+        current_revenue = current_period[self.config['revenue_col']].sum()
+        previous_revenue = previous_period[self.config['revenue_col']].sum()
+
+        growth_rate = ((current_revenue - previous_revenue) / previous_revenue * 100) if previous_revenue > 0 else 0
+
         self.kpis = {
             'total_revenue': self.revenue_metrics['total_revenue'],
             'total_transactions': self.revenue_metrics['total_transactions'],
@@ -182,46 +130,17 @@ class BusinessAnalyzer:
             'previous_period_revenue': previous_revenue,
             'mid_date': mid_date
         }
-    
-    def get_kpis(self) -> Dict:
-        if self.kpis is None:
-            self.set_kpis()
+
         return self.kpis
-    
-    def print_kpis(self) -> str:
-        if self.kpis is None:
-            self.set_kpis()
-        
-        # Calculate period boundaries
-        mid_date = self.get_kpis()['mid_date']
-        
-        # Include period boundaries used for growth calculation
-        start_date = self.revenue_metrics['date_range']['start']
-        end_date = self.revenue_metrics['date_range']['end']
-        prev_start_str = pd.to_datetime(start_date).strftime('%Y-%m-%d')
-        prev_end_str = pd.to_datetime(mid_date).strftime('%Y-%m-%d')
-        curr_start_str = pd.to_datetime(mid_date).strftime('%Y-%m-%d')
-        curr_end_str = pd.to_datetime(end_date).strftime('%Y-%m-%d')
 
-        kpi_str = []
-        kpi_str.append(f"\n📅 Periods considered for growth:")
-        kpi_str.append(f"  • Previous: {prev_start_str} -> {prev_end_str}")
-        kpi_str.append(f"  • Current:  {curr_start_str} -> {curr_end_str}")
-        kpi_str.append(f"📈 Growth: {self.kpis['revenue_growth']:.1f}%")
-        kpi_str.append(f"\n💰 Revenue: {self.format_currency(self.kpis['total_revenue'])}")
-        kpi_str.append(f"🛒 Transactions: {self.kpis['total_transactions']:,}")
-        kpi_str = "\n".join(kpi_str)
-
-        return kpi_str
-    
-    def set_alerts(self):
-        """Get critical business alerts"""
+    def calculate_alerts(self) -> Dict:
+        """Calculate critical business alerts"""
         alerts = {
             'critical': [],
             'warning': [],
             'success': []
         }
-        
+
         # Check for dead inventory
         if self.inventory is not None:
             dead_stock = self.inventory[
@@ -234,13 +153,13 @@ class BusinessAnalyzer:
                     'impact': 'Cash tied up in non-moving inventory',
                     'action': 'Consider liquidation or promotional campaigns'
                 })
-        
+
         # Check revenue concentration
-        if self.product_analysis is not None:
+        if self.product_analysis is not None and self.revenue_metrics is not None:
             top_20_pct = int(len(self.product_analysis) * 0.2)
             revenue_concentration = self.product_analysis.iloc[:top_20_pct][self.config['revenue_col']].sum()
             concentration_pct = (revenue_concentration / self.revenue_metrics['total_revenue']) * 100
-            
+
             if concentration_pct > 80:
                 alerts['warning'].append({
                     'type': 'high_concentration',
@@ -255,7 +174,7 @@ class BusinessAnalyzer:
                     'impact': 'Lower concentration risk',
                     'action': 'Maintain current portfolio balance'
                 })
-        
+
         # Check for growth
         kpis = self.get_kpis()
         if kpis.get('revenue_growth', 0) > 10:
@@ -272,18 +191,148 @@ class BusinessAnalyzer:
                 'impact': 'Negative business trend',
                 'action': 'Urgent review of sales strategy needed'
             })
-            
-        self.alerts = alerts
-    
-    def get_alerts(self) -> Dict:
-        if self.alerts is None:
-            self.set_alerts()
-        return self.alerts
-    
-    def print_alerts(self, save: bool = False):
-        alerts = self.get_alerts()
 
+        self.alerts = alerts
+        return alerts
+
+    def calculate_pareto_insights(self) -> Dict:
+        """Calculate 80/20 analysis insights"""
+        if self.product_analysis is None:
+            return {}
+
+        # Calculate Pareto insights
+        twenty_percent = int(len(self.product_analysis) * self.config['top_products_threshold'])
+        top_products = self.product_analysis.iloc[:twenty_percent]
+
+        revenue_from_top = top_products[self.config['revenue_col']].sum()
+        total_revenue = self.product_analysis[self.config['revenue_col']].sum()
+        revenue_pct = (revenue_from_top / total_revenue) * 100
+
+        self.pareto = {
+            'top_products_count': twenty_percent,
+            'top_products_pct': self.config['top_products_threshold'] * 100,
+            'revenue_from_top': revenue_from_top,
+            'revenue_from_top_pct': revenue_pct,
+            'top_products_list': top_products.head(10).to_dict('records'),
+            'concentration_level': 'High' if revenue_pct > 80 else 'Medium' if revenue_pct > 60 else 'Low'
+        }
+
+        return self.pareto
+
+    def calculate_inventory_health(self) -> Dict:
+        """Calculate inventory health summary"""
+        if self.inventory is None:
+            return {}
+
+        status_summary = self.inventory['status'].value_counts().to_dict()
+        dead_stock = self.inventory[self.inventory['status'].isin(['Dead', 'Zombie'])]
+
+        inventory_health = {
+            'status_distribution': status_summary,
+            'dead_stock_count': len(dead_stock),
+            'healthy_stock_pct': (status_summary.get('Hot', 0) + status_summary.get('Active', 0)) / len(self.inventory) * 100,
+            'at_risk_products': self.inventory[self.inventory['status'] == 'Slowing'].to_dict('records')[:5]
+        }
+
+        return inventory_health
+
+    def calculate_peak_times(self) -> Dict:
+        """Calculate peak business times"""
+        if self.data is None or 'hour' not in self.data.columns:
+            return {}
+
+        # Revenue by hour
+        hourly_revenue = self.data.groupby('hour')[self.config['revenue_col']].sum()
+        peak_hour = hourly_revenue.idxmax()
+
+        # Revenue by weekday
+        if 'weekday' in self.data.columns:
+            daily_revenue = self.data.groupby('weekday')[self.config['revenue_col']].sum()
+            peak_day = daily_revenue.idxmax()
+            valley_day = daily_revenue.idxmin()
+        else:
+            peak_day = valley_day = 'N/A'
+
+        peak_times = {
+            'peak_hour': peak_hour,
+            'peak_day': peak_day,
+            'valley_day': valley_day,
+            'hourly_distribution': hourly_revenue.to_dict(),
+            'recommendation': f'Optimize staffing for {peak_day}s around {peak_hour}:00'
+        }
+
+        return peak_times
+
+    # PUBLIC GET METHODS (with lazy calculation)
+    def get_kpis(self, show: bool = False) -> Dict:
+        """Get KPIs (calculate if not yet calculated)"""
+        if self.kpis is None:
+            self.calculate_kpis()
+
+        if show:
+            print(self.print_kpis())
+
+        return self.kpis
+
+    def get_alerts(self, show: bool = False) -> Dict:
+        """Get alerts (calculate if not yet calculated)"""
+        if self.alerts is None:
+            self.calculate_alerts()
+
+        if show:
+            print(self.print_alerts())
+
+        return self.alerts
+
+    def get_pareto_insights(self) -> Dict:
+        """Get pareto insights (calculate if not yet calculated)"""
+        if self.pareto is None:
+            self.calculate_pareto_insights()
+        return self.pareto
+
+    def get_inventory_health(self) -> Dict:
+        """Get inventory health summary (calculate if not yet calculated)"""
+        inventory_health = self.calculate_inventory_health()
+        return inventory_health
+
+    def get_peak_times(self) -> Dict:
+        """Get peak business times (calculate if not yet calculated)"""
+        peak_times = self.calculate_peak_times()
+        return peak_times
+
+    # PRINT/FORMAT METHODS
+    def print_kpis(self) -> str:
+        """Format KPIs as string"""
+        if self.kpis is None:
+            self.calculate_kpis()
+
+        kpis = self.kpis
+        mid_date = kpis['mid_date']
+        date_range = self.revenue_metrics['date_range']
+
+        prev_start_str = pd.to_datetime(date_range['start']).strftime('%Y-%m-%d')
+        prev_end_str = pd.to_datetime(mid_date).strftime('%Y-%m-%d')
+        curr_start_str = pd.to_datetime(mid_date).strftime('%Y-%m-%d')
+        curr_end_str = pd.to_datetime(date_range['end']).strftime('%Y-%m-%d')
+
+        kpi_str = []
+        kpi_str.append(f"\n📅 Periods considered for growth:")
+        kpi_str.append(f"  • Previous: {prev_start_str} -> {prev_end_str}")
+        kpi_str.append(f"  • Current:  {curr_start_str} -> {curr_end_str}")
+        kpi_str.append(f"📈 Growth: {kpis['revenue_growth']:.1f}%")
+        kpi_str.append(f"\n💰 Revenue: {self.format_currency(kpis['total_revenue'])}")
+        kpi_str.append(f"🛒 Transactions: {kpis['total_transactions']:,}")
+
+        return "\n".join(kpi_str)
+
+    def print_alerts(self) -> str:
+        """Format alerts as string"""
+        if self.alerts is None:
+            self.calculate_alerts()
+
+        alerts = self.alerts
         alerts_str = []
+
         if alerts['critical']:
             alerts_str.append("🔴 CRITICAL ACTIONS REQUIRED:")
             for alert in alerts['critical']:
@@ -302,173 +351,68 @@ class BusinessAnalyzer:
             for alert in alerts['success']:
                 alerts_str.append(f"\n  {alert['message']}")
                 alerts_str.append(f"  ➔ Next Step: {alert['action']}")
-    
-        alerts_str = "\n".join(alerts_str)
-        
-        return alerts_str
 
-    def get_pareto_insights(self, top_products_count: int = 5, save: bool = False) -> Dict:
-        """Get 80/20 analysis insights"""
-        if self.product_analysis is None:
-            return {}
-        
-        # Calculate Pareto insights
-        twenty_percent = int(len(self.product_analysis) * self.config['top_products_threshold']) # Top 20%
-        top_products = self.product_analysis.iloc[:twenty_percent] # Top 20% products by revenue
-        
-        revenue_from_top = top_products[self.config['revenue_col']].sum() # Revenue from top 20%
-        total_revenue = self.product_analysis[self.config['revenue_col']].sum() # Total revenue
-        revenue_pct = (revenue_from_top / total_revenue) * 100 # Percentage of revenue from top 20%
-        
-        self.pareto = {
-            'top_products_count': twenty_percent,
-            'top_products_pct': self.config['top_products_threshold'] * 100,
-            'revenue_from_top': revenue_from_top,
-            'revenue_from_top_pct': revenue_pct,
-            'top_products_list': top_products.head(10).to_dict('records'),
-            'concentration_level': 'High' if revenue_pct > 80 else 'Medium' if revenue_pct > 60 else 'Low'
-        }
-        
-        # Print insights
+        return "\n".join(alerts_str)
+
+    def print_pareto(self, top_products_count: int = 5) -> str:
+        """Format pareto insights as string"""
+        if self.pareto is None:
+            self.calculate_pareto_insights()
+
+        pareto = self.pareto
         pareto_str = []
-        pareto_str.append(f"🎯 TOP INSIGHT: Your top {self.pareto['top_products_count']} products "
-            f"({self.pareto['top_products_pct']:.0f}% of catalog) generate "
-            f"{self.pareto['revenue_from_top_pct']:.1f}% of revenue!")
+        pareto_str.append(f"🎯 TOP INSIGHT: Your top {pareto['top_products_count']} products "
+            f"({pareto['top_products_pct']:.0f}% of catalog) generate "
+            f"{pareto['revenue_from_top_pct']:.1f}% of revenue!")
 
-        pareto_str.append(f"\nConcentration Risk Level: {self.pareto['concentration_level']}")
+        pareto_str.append(f"\nConcentration Risk Level: {pareto['concentration_level']}")
 
         pareto_str.append(f"\n📋 Top {top_products_count} Revenue Generators:")
-        for i, product in enumerate(self.pareto['top_products_list'][:top_products_count], 1):
-            pareto_str.append(f"  {i}. {product['glosa']}: {self.format_currency(product['total'])}")
-        
-        pareto_str.append(f"\n📊 80/20 Rule: Top {self.pareto['top_products_pct']:.0f}% = {self.pareto['revenue_from_top_pct']:.1f}% of revenue")
-        
-        pareto_str = "\n".join(pareto_str)
-        
-        # Save to file if needed
-        if save:
-            # Resolve save path and ensure directory exists
-            save_path = (self.out_dir) + f'/BA_pareto.txt'
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        for i, product in enumerate(pareto['top_products_list'][:top_products_count], 1):
+            pareto_str.append(f"  {i}. {product[self.config['description_col']]}: {self.format_currency(product[self.config['revenue_col']])}")
 
-            # Write printed output into file using redirect_stdout
-            with open(save_path, 'w', encoding='utf-8') as out:
-                with redirect_stdout(out):
-                    print(pareto_str)
+        pareto_str.append(f"\n📊 80/20 Rule: Top {pareto['top_products_pct']:.0f}% = {pareto['revenue_from_top_pct']:.1f}% of revenue")
 
-            print(f"✅ Dashboard summary exported to {save_path}")
-        else:
-            # Print to normal stdout
-            print(pareto_str)
-            
-        return self.pareto
+        return "\n".join(pareto_str)
 
-    def get_inventory_health(self, save: bool = False) -> Dict:
-        """Get inventory health summary"""
-        if self.inventory is None:
-            return {}
-        
-        status_summary = self.inventory['status'].value_counts().to_dict()
-        
-        # Calculate tied up cash if cost data available
-        dead_stock = self.inventory[self.inventory['status'].isin(['Dead', 'Zombie'])]
-        
-        inventory_return = {
-            'status_distribution': status_summary,
-            'dead_stock_count': len(dead_stock),
-            'healthy_stock_pct': (status_summary.get('Hot', 0) + status_summary.get('Active', 0)) / len(self.inventory) * 100,
-            'at_risk_products': self.inventory[self.inventory['status'] == 'Slowing'].to_dict('records')[:5]
-        }
-        
-        # Print summary
+    def print_inventory_health(self) -> str:
+        """Format inventory health as string"""
+        inventory_health = self.calculate_inventory_health()
+
+        if not inventory_health:
+            return "No inventory data available"
+
         inv_health_str = []
-        inv_health_str.append(f"📊 Inventory Health Score: {inventory_return['healthy_stock_pct']:.0f}%")
-        inv_health_str.append(f"\n⚠️ Dead Stock Alert: {inventory_return['dead_stock_count']} products")
+        inv_health_str.append(f"📊 Inventory Health Score: {inventory_health['healthy_stock_pct']:.0f}%")
+        inv_health_str.append(f"\n⚠️ Dead Stock Alert: {inventory_health['dead_stock_count']} products")
 
-        if inventory_return['at_risk_products']:
+        if inventory_health['at_risk_products']:
             inv_health_str.append("\n🟡 Products At Risk (Slowing):")
-            for product in inventory_return['at_risk_products'][:3]:
-                inv_health_str.append(f"  • {product['glosa']}: {product['days_since_sale']} days since last sale")
-        inv_health_str = "\n".join(inv_health_str)
-        
-        if save:
-            # Resolve save path and ensure directory exists
-            save_path = (self.out_dir) + f'/BA_inventory_health.txt'
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            for product in inventory_health['at_risk_products'][:3]:
+                inv_health_str.append(f"  • {product[self.config['description_col']]}: {product['days_since_sale']} days since last sale")
 
-            # Write printed output into file using redirect_stdout
-            with open(save_path, 'w', encoding='utf-8') as out:
-                with redirect_stdout(out):
-                    print(inv_health_str)
+        return "\n".join(inv_health_str)
 
-            print(f"✅ Dashboard summary exported to {save_path}")
-        else:
-            # Print to normal stdout
-            print(inv_health_str)
-        
-        return inventory_return
-    
-    def get_peak_times(self, save: bool = False) -> Dict:
-        """Get peak business times"""
-        if self.data is None or 'hour' not in self.data.columns:
-            return {}
-        
-        # Revenue by hour
-        hourly_revenue = self.data.groupby('hour')[self.config['revenue_col']].sum()
-        peak_hour = hourly_revenue.idxmax()
-        
-        # Revenue by weekday
-        if 'weekday' in self.data.columns:
-            daily_revenue = self.data.groupby('weekday')[self.config['revenue_col']].sum()
-            peak_day = daily_revenue.idxmax()
-            valley_day = daily_revenue.idxmin()
-        else:
-            peak_day = valley_day = 'N/A'
-        
-        peak_times_return = {
-            'peak_hour': peak_hour,
-            'peak_day': peak_day,
-            'valley_day': valley_day,
-            'hourly_distribution': hourly_revenue.to_dict(),
-            'recommendation': f'Optimize staffing for {peak_day}s around {peak_hour}:00'
-        }
+    def print_peak_times(self) -> str:
+        """Format peak times as string"""
+        peak_times = self.calculate_peak_times()
 
-        # Display insights
+        if not peak_times:
+            return "No timing data available"
+
         peaks_str = []
         peaks_str.append(f"⏰ Peak Performance Windows:")
-        peaks_str.append(f"  • Best Day: {peak_times_return['peak_day']}s")
-        peaks_str.append(f"  • Peak Hour: {peak_times_return['peak_hour']}:00")
-        peaks_str.append(f"  • Slowest Day: {peak_times_return['valley_day']}s")
-        peaks_str.append(f"\n💡 {peak_times_return['recommendation']}")
-        peaks_str = "\n".join(peaks_str)
-        
-        if save:
-            # Resolve save path and ensure directory exists
-            save_path = (self.out_dir) + f'/BA_peak_times.txt'
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        peaks_str.append(f"  • Best Day: {peak_times['peak_day']}s")
+        peaks_str.append(f"  • Peak Hour: {peak_times['peak_hour']}:00")
+        peaks_str.append(f"  • Slowest Day: {peak_times['valley_day']}s")
+        peaks_str.append(f"\n💡 {peak_times['recommendation']}")
 
-            # Write printed output into file using redirect_stdout
-            with open(save_path, 'w', encoding='utf-8') as out:
-                with redirect_stdout(out):
-                    print(peaks_str)
+        return "\n".join(peaks_str)
 
-            print(f"✅ Dashboard summary exported to {save_path}")
-        else:
-            # Print to normal stdout
-            print(peaks_str)
-
-        return peak_times_return
-    
-    def format_currency(self, value: float) -> str:
-        """Format value as currency based on config"""
-        if self.config['currency_format'] == 'CLP':
-            return f"$ {value:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        else:
-            return f"${value:,.2f}"
-        
-    def save_executive_summary(self, save: bool = False):
-        """Save executive summary to CSV"""
-        summary = {
+    # SUMMARY METHODS
+    def get_executive_summary_dict(self) -> Dict:
+        """Get executive summary as dictionary (for CSV export)"""
+        return {
             'Date': self.config['analysis_date'],
             'Total Revenue': self.get_kpis().get('total_revenue', 0),
             'Revenue Growth %': self.get_kpis().get('revenue_growth', 0),
@@ -477,17 +421,3 @@ class BusinessAnalyzer:
             'Dead Stock Count': self.get_inventory_health().get('dead_stock_count', 0),
             'Inventory Health %': self.get_inventory_health().get('healthy_stock_pct', 0)
         }
-        
-        # Convert to DataFrame for easy CSV export
-        summary_df = pd.DataFrame([summary])
-        
-        # Save or print
-        if save:
-            # Resolve save path and ensure directory exists
-            save_path = (self.out_dir) + f'/BA_executive_summary.csv'
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-            # Write printed output into file using redirect_stdout
-            summary_df.to_csv(save_path, index=False)
-            print(f"✅ Executive summary exported to {save_path}")
-

@@ -8,28 +8,35 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.gridspec import GridSpec
-import matplotlib.patches as mpatches
-from typing import Dict, Optional
-from contextlib import redirect_stdout
-import os
+from typing import Dict
 import warnings
 warnings.filterwarnings('ignore')
+
+from modules.business_analytics import BusinessAnalyzer
 
 # Set style
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette("husl")
 
+
 class ExecutiveDashboard:
-    """Create executive dashboard visualizations"""
-    
-    def __init__(self, analyzer):
-        """Initialize with a BusinessAnalyzer instance"""
+    """
+    Executive dashboard that works with a BusinessAnalyzer instance.
+    Uses composition to access business data and analytics.
+    """
+
+    def __init__(self, analyzer: BusinessAnalyzer):
+        """
+        Initialize dashboard with a BusinessAnalyzer instance
+
+        Args:
+            analyzer: BusinessAnalyzer instance (which extends Business)
+        """
+        if not isinstance(analyzer, BusinessAnalyzer):
+            raise TypeError("Expected BusinessAnalyzer instance")
+
         self.analyzer = analyzer
-        self.config = analyzer.config
-        self.run_dt = analyzer.run_dt
-        self.run_time = analyzer.run_time
-        self.out_dir = analyzer.out_dir
-        print(f"Dashboard output directory: {self.out_dir}")
+        print(f"Dashboard output directory: {self.analyzer.out_dir}")
         self.colors = {
             'primary': '#2E86AB',
             'success': '#52B788',
@@ -39,7 +46,7 @@ class ExecutiveDashboard:
             'light': '#F1FAEE'
         }
         self.dashboard = None
-    
+
     # PRIVATE METHODS
     def _create_kpi_cards(self, fig, gridspec, kpis):
         """Create KPI metric cards"""
@@ -121,9 +128,9 @@ class ExecutiveDashboard:
         
         # Get top 10 products
         products = pareto['top_products_list'][:10]
-        names = [p[self.analyzer.config['description_col']][:20] + '...' 
-                if len(p[self.analyzer.config['description_col']]) > 20 
-                else p[self.analyzer.config['description_col']] 
+        names = [p[self.analyzer.config['description_col']][:20] + '...'
+                if len(p[self.analyzer.config['description_col']]) > 20
+                else p[self.analyzer.config['description_col']]
                 for p in products]
         revenues = [p[self.analyzer.config['revenue_col']] for p in products]
         
@@ -285,68 +292,69 @@ class ExecutiveDashboard:
                fontsize=9, style='italic', color='gray')
         
     # PUBLIC METHODS
-    def create_full_dashboard(self, figsize=(20, 12), save = False):
-        """Create comprehensive executive dashboard"""
+    def create_full_dashboard(self, figsize=(20, 12)):
+        """
+        Create comprehensive executive dashboard
+
+        Returns:
+            matplotlib.figure.Figure: The generated dashboard figure
+
+        Note:
+            To save the dashboard, use fig.savefig() or a utility function
+        """
         fig = plt.figure(figsize=figsize, facecolor='white')
         gs = GridSpec(3, 4, figure=fig, hspace=0.3, wspace=0.3)
-        
+
         # Title
-        fig.suptitle('Executive Business Intelligence Dashboard', 
+        fig.suptitle('Executive Business Intelligence Dashboard',
                     fontsize=24, fontweight='bold', y=0.98)
-        
-        # Get data
+
+        # Get data from analyzer
         kpis = self.analyzer.get_kpis()
         alerts = self.analyzer.get_alerts()
         pareto = self.analyzer.get_pareto_insights()
         inventory = self.analyzer.get_inventory_health()
         peak_times = self.analyzer.get_peak_times()
-        
+
         # 1. KPI Cards (top row)
         self._create_kpi_cards(fig, gs[0, :], kpis)
-        
+
         # 2. Revenue Concentration (left middle)
         ax_pareto = fig.add_subplot(gs[1, :2])
         self._create_pareto_chart(ax_pareto, pareto)
-        
+
         # 3. Inventory Health (right middle)
         ax_inventory = fig.add_subplot(gs[1, 2:])
         self._create_inventory_gauge(ax_inventory, inventory)
-        
+
         # 4. Alerts Panel (bottom left)
         ax_alerts = fig.add_subplot(gs[2, :2])
         self._create_alerts_panel(ax_alerts, alerts)
-        
+
         # 5. Peak Times Heatmap (bottom right)
         ax_peak = fig.add_subplot(gs[2, 2:])
         self._create_peak_times_chart(ax_peak, peak_times)
-        
+
         # Add timestamp
         fig.text(0.99, 0.01, f'Generated: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")}',
                 ha='right', va='bottom', fontsize=8, style='italic', color='gray')
-        
+
         plt.tight_layout()
 
         # Store the figure in the instance for later use
         self.dashboard = fig
 
-        if save:
-            # Get save path
-            save_path = (self.out_dir) + f'/DASH_executive.png'
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-            # Save figure
-            fig.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"✅ Dashboard saved to '{save_path}'")
-
         return fig
     
-    def create_quick_summary(self, save: bool = False) -> str:
-        """Create a quick text summary for executives.
+    def create_quick_summary(self) -> str:
+        """
+        Create a quick text summary for executives
 
-        Behavior:
-        - If save is False: prints the summary to standard output and returns it.
-        - If save is True: writes the printed summary to the resolved save_path file
-          (creates directories if necessary) and returns the summary string.
+        Returns:
+            str: Formatted summary string
+
+        Note:
+            To print or save, use print() or utils.print_info()
         """
         kpis = self.analyzer.get_kpis()
         alerts = self.analyzer.get_alerts()
@@ -379,24 +387,6 @@ class ExecutiveDashboard:
 
         summary.append("\n" + "=" * 60)
 
-        summary_str = "\n".join(summary)
-
-        # Save or print
-        if save:
-            # Resolve save path and ensure directory exists
-            save_path = (self.out_dir) + "/DASH_summary.txt"
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-            # Write printed output into file using redirect_stdout
-            with open(save_path, 'w', encoding='utf-8') as out:
-                with redirect_stdout(out):
-                    print(summary_str)
-
-            print(f"✅ Dashboard summary exported to {save_path}")
-        else:
-            # Print to normal stdout
-            print(summary_str)
-
-        return summary_str
+        return "\n".join(summary)
     
         

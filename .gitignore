@@ -12,6 +12,7 @@ node_modules/
 dist/
 build/
 *.egg-info/
+_prompt.*
 
 # Data files
 /data/**/*.csv
