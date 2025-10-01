@@ -108,6 +108,7 @@ class Business:
         self.min_dt = self.data[self.config['date_col']].min()
         self.max_dt = self.data[self.config['date_col']].max()
         print(f"Data date range: {self.min_dt.date()} to {self.max_dt.date()}")
+        print(f"Recommended analysis_date: {self.max_dt.date() + pd.Timedelta(days=1)} or later")
         
         analysis_date = pd.Timestamp(self.config['analysis_date'])
         if analysis_date < self.min_dt:
