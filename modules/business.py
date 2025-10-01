@@ -108,7 +108,13 @@ class Business:
         self.min_dt = self.data[self.config['date_col']].min()
         self.max_dt = self.data[self.config['date_col']].max()
         print(f"Data date range: {self.min_dt.date()} to {self.max_dt.date()}")
-
+        
+        analysis_date = pd.Timestamp(self.config['analysis_date'])
+        if analysis_date < self.min_dt:
+            print(f"⚠️⚠️⚠️ Warning: Analysis date {analysis_date.date()} is before data range. ⚠️⚠️⚠️")
+        if analysis_date > self.max_dt + pd.Timedelta(days=30):
+            print(f"⚠️⚠️⚠️ Warning: Analysis date {analysis_date.date()} is significantly after data range. ⚠️⚠️⚠️")
+        
         # Add time-based columns if they don't exist
         if 'hour' not in self.data.columns and 'inith' in self.data.columns:
             self.data['hour'] = self.data['inith']
