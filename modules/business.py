@@ -1,6 +1,5 @@
 """
-Business Analytics Core Module
-Main analytics engine for executive dashboards
+Business Core Module
 """
 
 from matplotlib.pylab import pareto
