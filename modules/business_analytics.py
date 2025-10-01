@@ -112,13 +112,13 @@ class BusinessAnalyzer(Business):
         # Calculate period comparisons
         mid_date = date_range['start'] + (date_range['end'] - date_range['start']) / 2
 
-        current_period = self.data[self.data[self.config['date_col']] >= mid_date]
-        previous_period = self.data[self.data[self.config['date_col']] < mid_date]
+        current_period = self.data[self.data[self.config['date_col']] >= mid_date] # Current period data
+        previous_period = self.data[self.data[self.config['date_col']] < mid_date] # Previous period data
 
-        current_revenue = current_period[self.config['revenue_col']].sum()
-        previous_revenue = previous_period[self.config['revenue_col']].sum()
+        current_revenue = current_period[self.config['revenue_col']].sum() # Current period revenue
+        previous_revenue = previous_period[self.config['revenue_col']].sum() # Previous period revenue
 
-        growth_rate = ((current_revenue - previous_revenue) / previous_revenue * 100) if previous_revenue > 0 else 0
+        growth_rate = ((current_revenue - previous_revenue) / previous_revenue * 100) if previous_revenue > 0 else 0 # Growth %
 
         self.kpis = {
             'total_revenue': self.revenue_metrics['total_revenue'],

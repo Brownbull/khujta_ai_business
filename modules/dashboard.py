@@ -36,7 +36,7 @@ class ExecutiveDashboard:
             raise TypeError("Expected BusinessAnalyzer instance")
 
         self.analyzer = analyzer
-        print(f"Dashboard output directory: {self.analyzer.out_dir}")
+        print(f"Dashboard initialized for project: {self.analyzer.config['project_name']}")
         self.colors = {
             'primary': '#2E86AB',
             'success': '#52B788',
