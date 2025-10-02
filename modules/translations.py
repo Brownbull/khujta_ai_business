@@ -629,3 +629,30 @@ def get_filename(prefix: str, suffix_key: str, lang: str = 'ENG', extension: str
 
     suffix = FILE_NAME_TRANSLATIONS[lang].get(suffix_key, suffix_key)
     return f"{prefix}_{suffix}.{extension}"
+
+
+def create_filename_helper(config: dict):
+    """
+    Create a filename helper function bound to a specific config
+
+    This is a convenience function for notebooks that automatically uses
+    the language from the config dictionary.
+
+    Args:
+        config: Configuration dictionary containing 'language' key
+
+    Returns:
+        A function that takes (prefix, suffix_key, ext='txt') and returns translated filename
+
+    Example:
+        fn = create_filename_helper(config)
+        fn('BA', 'kpi')  # Returns 'BA_kpi.txt' or 'BA_kpi.txt' depending on config['language']
+        fn('DASH', 'executive', 'png')  # Returns 'DASH_ejecutivo.png' in Spanish
+    """
+    lang = config.get('language', 'ENG')
+
+    def fn(prefix: str, suffix_key: str, ext: str = 'txt') -> str:
+        """Shorthand for generating translated filenames using config language"""
+        return get_filename(prefix, suffix_key, lang, ext)
+
+    return fn

@@ -15,8 +15,13 @@ def print_info(print_str: str, out_dir: str, file_name: str, save: bool = False)
 
         print(f"✅ Exported to {save_path}")
     else:
-        # Print to normal stdout
-        print(print_str)
+        # Print to normal stdout (first 40 lines only)
+        lines = print_str.split('\n')
+        if len(lines) > 40:
+            print('\n'.join(lines[:40]))
+            print(f"\n... ({len(lines) - 40} more lines)")
+        else:
+            print(print_str)
         
 def print_fig(fig, out_dir: str, file_name: str, save: bool = False):
     """Print or save figure"""
