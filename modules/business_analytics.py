@@ -135,6 +135,10 @@ class BusinessAnalyzer(Business):
 
     def calculate_alerts(self) -> Dict:
         """Calculate critical business alerts"""
+        from modules.translations import get_text
+
+        lang = self.config.get('language', 'ENG')
+
         alerts = {
             'critical': [],
             'warning': [],
@@ -149,9 +153,9 @@ class BusinessAnalyzer(Business):
             if len(dead_stock) > 0:
                 alerts['critical'].append({
                     'type': 'dead_inventory',
-                    'message': f'{len(dead_stock)} products haven\'t sold in {self.config["dead_stock_days"]}+ days',
-                    'impact': 'Cash tied up in non-moving inventory',
-                    'action': 'Consider liquidation or promotional campaigns'
+                    'message': get_text('alert_dead_inventory_msg', lang, count=len(dead_stock), days=self.config['dead_stock_days']),
+                    'impact': get_text('alert_dead_inventory_impact', lang),
+                    'action': get_text('alert_dead_inventory_action', lang)
                 })
 
         # Check revenue concentration
@@ -163,16 +167,16 @@ class BusinessAnalyzer(Business):
             if concentration_pct > 80:
                 alerts['warning'].append({
                     'type': 'high_concentration',
-                    'message': f'Top 20% of products generate {concentration_pct:.1f}% of revenue',
-                    'impact': 'High dependency on few products',
-                    'action': 'Diversify product portfolio'
+                    'message': get_text('alert_high_concentration_msg', lang, pct=f"{concentration_pct:.1f}"),
+                    'impact': get_text('alert_high_concentration_impact', lang),
+                    'action': get_text('alert_high_concentration_action', lang)
                 })
             else:
                 alerts['success'].append({
                     'type': 'balanced_portfolio',
-                    'message': f'Revenue well distributed across products',
-                    'impact': 'Lower concentration risk',
-                    'action': 'Maintain current portfolio balance'
+                    'message': get_text('alert_balanced_portfolio_msg', lang),
+                    'impact': get_text('alert_balanced_portfolio_impact', lang),
+                    'action': get_text('alert_balanced_portfolio_action', lang)
                 })
 
         # Check for growth
@@ -180,16 +184,16 @@ class BusinessAnalyzer(Business):
         if kpis.get('revenue_growth', 0) > 10:
             alerts['success'].append({
                 'type': 'strong_growth',
-                'message': f'Revenue growing at {kpis["revenue_growth"]:.1f}%',
-                'impact': 'Positive business momentum',
-                'action': 'Scale successful initiatives'
+                'message': get_text('alert_strong_growth_msg', lang, pct=f"{kpis['revenue_growth']:.1f}"),
+                'impact': get_text('alert_strong_growth_impact', lang),
+                'action': get_text('alert_strong_growth_action', lang)
             })
         elif kpis.get('revenue_growth', 0) < -10:
             alerts['critical'].append({
                 'type': 'revenue_decline',
-                'message': f'Revenue declining by {abs(kpis["revenue_growth"]):.1f}%',
-                'impact': 'Negative business trend',
-                'action': 'Urgent review of sales strategy needed'
+                'message': get_text('alert_revenue_decline_msg', lang, pct=f"{abs(kpis['revenue_growth']):.1f}"),
+                'impact': get_text('alert_revenue_decline_impact', lang),
+                'action': get_text('alert_revenue_decline_action', lang)
             })
 
         self.alerts = alerts
@@ -304,6 +308,10 @@ class BusinessAnalyzer(Business):
     # PRINT/FORMAT METHODS
     def print_kpis(self) -> str:
         """Format KPIs as string"""
+        from modules.translations import get_text
+
+        lang = self.config.get('language', 'ENG')
+
         if self.kpis is None:
             self.calculate_kpis()
 
@@ -317,17 +325,21 @@ class BusinessAnalyzer(Business):
         curr_end_str = pd.to_datetime(date_range['end']).strftime('%Y-%m-%d')
 
         kpi_str = []
-        kpi_str.append(f"\n📅 Periods considered for growth:")
-        kpi_str.append(f"  • Previous: {prev_start_str} -> {prev_end_str}")
-        kpi_str.append(f"  • Current:  {curr_start_str} -> {curr_end_str}")
-        kpi_str.append(f"📈 Growth: {kpis['revenue_growth']:.1f}%")
-        kpi_str.append(f"\n💰 Revenue: {self.format_currency(kpis['total_revenue'])}")
-        kpi_str.append(f"🛒 Transactions: {kpis['total_transactions']:,}")
+        kpi_str.append(f"\n📅 {get_text('periods_for_growth', lang)}")
+        kpi_str.append(f"  • {get_text('previous', lang)}: {prev_start_str} -> {prev_end_str}")
+        kpi_str.append(f"  • {get_text('current', lang)}:  {curr_start_str} -> {curr_end_str}")
+        kpi_str.append(f"📈 {get_text('growth', lang)}: {kpis['revenue_growth']:.1f}%")
+        kpi_str.append(f"\n💰 {get_text('revenue', lang)}: {self.format_currency(kpis['total_revenue'])}")
+        kpi_str.append(f"🛒 {get_text('transactions', lang).capitalize()}: {kpis['total_transactions']:,}")
 
         return "\n".join(kpi_str)
 
     def print_alerts(self) -> str:
         """Format alerts as string"""
+        from modules.translations import get_text
+
+        lang = self.config.get('language', 'ENG')
+
         if self.alerts is None:
             self.calculate_alerts()
 
@@ -335,82 +347,104 @@ class BusinessAnalyzer(Business):
         alerts_str = []
 
         if alerts['critical']:
-            alerts_str.append("🔴 CRITICAL ACTIONS REQUIRED:")
+            alerts_str.append(f"🔴 {get_text('critical_actions', lang)}")
             for alert in alerts['critical']:
                 alerts_str.append(f"\n  {alert['message']}")
-                alerts_str.append(f"  Impact: {alert['impact']}")
-                alerts_str.append(f"  ➔ Action: {alert['action']}")
+                alerts_str.append(f"  {get_text('impact', lang)}: {alert['impact']}")
+                alerts_str.append(f"  ➔ {get_text('action', lang)}: {alert['action']}")
 
         if alerts['warning']:
-            alerts_str.append("\n🟡 WARNINGS:")
+            alerts_str.append(f"\n🟡 {get_text('warnings', lang)}")
             for alert in alerts['warning']:
                 alerts_str.append(f"\n  {alert['message']}")
-                alerts_str.append(f"  ➔ Action: {alert['action']}")
+                alerts_str.append(f"  ➔ {get_text('action', lang)}: {alert['action']}")
 
         if alerts['success']:
-            alerts_str.append("\n🟢 SUCCESS INDICATORS:")
+            alerts_str.append(f"\n🟢 {get_text('success_indicators', lang)}")
             for alert in alerts['success']:
                 alerts_str.append(f"\n  {alert['message']}")
-                alerts_str.append(f"  ➔ Next Step: {alert['action']}")
+                alerts_str.append(f"  ➔ {get_text('next_step', lang)}: {alert['action']}")
 
         return "\n".join(alerts_str)
 
     def print_pareto(self, top_products_count: int = 5) -> str:
         """Format pareto insights as string"""
+        from modules.translations import get_text
+
+        lang = self.config.get('language', 'ENG')
+
         if self.pareto is None:
             self.calculate_pareto_insights()
 
         pareto = self.pareto
         pareto_str = []
-        pareto_str.append(f"🎯 TOP INSIGHT: Your top {pareto['top_products_count']} products "
-            f"({pareto['top_products_pct']:.0f}% of catalog) generate "
-            f"{pareto['revenue_from_top_pct']:.1f}% of revenue!")
 
-        pareto_str.append(f"\nConcentration Risk Level: {pareto['concentration_level']}")
+        # Top insight with formatted translation
+        top_products_text = get_text('top_products', lang,
+            count=pareto['top_products_count'],
+            pct=pareto['top_products_pct'],
+            revenue_pct=f"{pareto['revenue_from_top_pct']:.1f}")
+        pareto_str.append(f"🎯 {get_text('top_insight', lang)}: {top_products_text}")
 
-        pareto_str.append(f"\n📋 Top {top_products_count} Revenue Generators:")
+        pareto_str.append(f"\n{get_text('concentration_risk', lang)}: {pareto['concentration_level']}")
+
+        pareto_str.append(f"\n📋 {get_text('top_revenue_generators', lang).replace('Principales', f'Top {top_products_count}').replace('Top', f'Top {top_products_count}')}:")
         for i, product in enumerate(pareto['top_products_list'][:top_products_count], 1):
             pareto_str.append(f"  {i}. {product[self.config['description_col']]}: {self.format_currency(product[self.config['revenue_col']])}")
 
-        pareto_str.append(f"\n📊 80/20 Rule: Top {pareto['top_products_pct']:.0f}% = {pareto['revenue_from_top_pct']:.1f}% of revenue")
+        pareto_rule_text = get_text('pareto_rule', lang, pct=f"{pareto['revenue_from_top_pct']:.1f}")
+        pareto_str.append(f"\n📊 {pareto_rule_text}")
 
         return "\n".join(pareto_str)
 
     def print_inventory_health(self) -> str:
         """Format inventory health as string"""
+        from modules.translations import get_text
+
+        lang = self.config.get('language', 'ENG')
         inventory_health = self.calculate_inventory_health()
 
         if not inventory_health:
             return "No inventory data available"
 
+        products_label = get_text('products', lang)
+        days_label = get_text('days', lang)
+
         inv_health_str = []
-        inv_health_str.append(f"📊 Inventory Health Score: {inventory_health['healthy_stock_pct']:.0f}%")
-        inv_health_str.append(f"\n⚠️ Dead Stock Alert: {inventory_health['dead_stock_count']} products")
+        inv_health_str.append(f"📊 {get_text('inventory_health_score', lang)}: {inventory_health['healthy_stock_pct']:.0f}%")
+        inv_health_str.append(f"\n⚠️ {get_text('dead_stock_alert', lang)}: {inventory_health['dead_stock_count']} {products_label}")
 
         if inventory_health['at_risk_products']:
-            inv_health_str.append("\n🟡 Products At Risk (Slowing):")
+            at_risk_label = "Products At Risk (Slowing)" if lang == 'ENG' else "Productos en Riesgo (Desacelerando)"
+            inv_health_str.append(f"\n🟡 {at_risk_label}:")
+            last_sale_label = "since last sale" if lang == 'ENG' else "desde última venta"
             for product in inventory_health['at_risk_products'][:3]:
-                inv_health_str.append(f"  • {product[self.config['description_col']]}: {product['days_since_sale']} days since last sale")
-        
+                inv_health_str.append(f"  • {product[self.config['description_col']]}: {product['days_since_sale']} {days_label} {last_sale_label}")
+
         if inventory_health['dead_stock_count'] > 0:
-            inv_health_str.append("\n🔴 Dead Stock Examples:")
+            examples_label = "Dead Stock Examples" if lang == 'ENG' else "Ejemplos de Producto Sin Movimiento"
+            inv_health_str.append(f"\n🔴 {examples_label}:")
+            last_sale_label = "since last sale" if lang == 'ENG' else "desde última venta"
             for product in inventory_health['dead_stock_products'][:3]:
-                inv_health_str.append(f"  • {product[self.config['description_col']]}: {product['days_since_sale']} days since last sale")
-        
+                inv_health_str.append(f"  • {product[self.config['description_col']]}: {product['days_since_sale']} {days_label} {last_sale_label}")
+
         return "\n".join(inv_health_str)
 
     def print_peak_times(self) -> str:
         """Format peak times as string"""
+        from modules.translations import get_text
+
+        lang = self.config.get('language', 'ENG')
         peak_times = self.calculate_peak_times()
 
         if not peak_times:
             return "No timing data available"
 
         peaks_str = []
-        peaks_str.append(f"⏰ Peak Performance Windows:")
-        peaks_str.append(f"  • Best Day: {peak_times['peak_day']}s")
-        peaks_str.append(f"  • Peak Hour: {peak_times['peak_hour']}:00")
-        peaks_str.append(f"  • Slowest Day: {peak_times['valley_day']}s")
+        peaks_str.append(f"⏰ {get_text('peak_performance', lang)}")
+        peaks_str.append(f"  • {get_text('best_day', lang)}: {peak_times['peak_day']}s")
+        peaks_str.append(f"  • {get_text('peak_hour', lang)}: {peak_times['peak_hour']}:00")
+        peaks_str.append(f"  • {get_text('slowest_day', lang)}: {peak_times['valley_day']}s")
         peaks_str.append(f"\n💡 {peak_times['recommendation']}")
 
         return "\n".join(peaks_str)

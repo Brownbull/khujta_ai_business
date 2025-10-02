@@ -121,7 +121,7 @@ class AdvancedAnalytics:
 
         return opportunities
 
-    def calculate_customer_segmentation_rfm(self) -> Dict:
+    def calculate_customer_segmentation_rfm(self, debug: bool = False) -> Dict:
         """Perform RFM (Recency, Frequency, Monetary) analysis"""
         if self.analyzer.data is None or self.analyzer.config['customer_col'] not in self.analyzer.data.columns:
             return self._segment_by_transaction_patterns()
@@ -130,21 +130,29 @@ class AdvancedAnalytics:
         analysis_date = pd.Timestamp(self.analyzer.config['analysis_date'])
 
         rfm = self.analyzer.data.groupby(self.analyzer.config['customer_col']).agg({
-            self.analyzer.config['date_col']: lambda x: (analysis_date - x.max()).days,
-            self.analyzer.config['transaction_col']: 'nunique',
-            self.analyzer.config['revenue_col']: 'sum'
+            self.analyzer.config['date_col']: lambda x: (analysis_date - x.max()).days, # Recency
+            self.analyzer.config['transaction_col']: 'nunique', # Frequency
+            self.analyzer.config['revenue_col']: 'sum' # Monetary
         })
 
         rfm.columns = ['Recency', 'Frequency', 'Monetary']
 
         # Create segments using quartiles (or fewer if data has duplicates)
+        # Note: For Recency, lower days = better, so we invert the labels
         for col in ['Recency', 'Frequency', 'Monetary']:
             try:
-                # Try to create quartiles with labels
-                rfm[f'{col}_Quartile'] = pd.qcut(rfm[col], 4, labels=['Q1', 'Q2', 'Q3', 'Q4'])
+                # Try to create quartiles with S1-S4 labels (Segment notation)
+                if col == 'Recency':
+                    # Invert labels for Recency: lower days = higher segment (S4 is best)
+                    rfm[f'{col}_Quartile'] = pd.qcut(rfm[col], 4, labels=['S4', 'S3', 'S2', 'S1'])
+                else:
+                    rfm[f'{col}_Quartile'] = pd.qcut(rfm[col], 4, labels=['S1', 'S2', 'S3', 'S4'])
+                if debug: print(f"{col} quartiles with labels created successfully.")
             except ValueError:
                 # If quartiles fail due to duplicates, use duplicates='drop' without labels
                 rfm[f'{col}_Quartile'] = pd.qcut(rfm[col], 4, duplicates='drop')
+                # For intervals, we'll handle the inversion in the display logic
+                if debug: print(f"{col} quartiles without labels created successfully.")
 
         # Define customer segments (handle both string labels and numeric values)
         def segment_customers(row):
@@ -182,24 +190,24 @@ class AdvancedAnalytics:
     def _segment_by_transaction_patterns(self) -> Dict:
         """Segment based on transaction patterns when no customer data"""
         trans_analysis = self.analyzer.data.groupby(self.analyzer.config['transaction_col']).agg({
-            self.analyzer.config['revenue_col']: 'sum',
-            self.analyzer.config['product_col']: 'count',
-            self.analyzer.config['date_col']: 'first'
+            self.analyzer.config['revenue_col']: 'sum', # Total revenue per transaction
+            self.analyzer.config['product_col']: 'count', # Number of items per transaction
+            self.analyzer.config['date_col']: 'first' # First transaction date
         })
 
         # Categorize transactions
         trans_analysis['size_category'] = pd.cut(
-            trans_analysis[self.analyzer.config['revenue_col']],
-            bins=[0, trans_analysis[self.analyzer.config['revenue_col']].quantile(0.33),
-                  trans_analysis[self.analyzer.config['revenue_col']].quantile(0.67),
-                  trans_analysis[self.analyzer.config['revenue_col']].max()],
+            trans_analysis[self.analyzer.config['revenue_col']], # Transaction size
+            bins=[0, trans_analysis[self.analyzer.config['revenue_col']].quantile(0.33), # 33% of transactions
+                  trans_analysis[self.analyzer.config['revenue_col']].quantile(0.67), # 67% of transactions
+                  trans_analysis[self.analyzer.config['revenue_col']].max()], # Max value
             labels=['Small', 'Medium', 'Large']
         )
 
         return {
-            'transaction_segments': trans_analysis['size_category'].value_counts().to_dict(),
-            'avg_transaction_size': trans_analysis[self.analyzer.config['revenue_col']].mean(),
-            'avg_items_per_transaction': trans_analysis[self.analyzer.config['product_col']].mean()
+            'transaction_segments': trans_analysis['size_category'].value_counts().to_dict(), # Count per size category
+            'avg_transaction_size': trans_analysis[self.analyzer.config['revenue_col']].mean(), # Average transaction size
+            'avg_items_per_transaction': trans_analysis[self.analyzer.config['product_col']].mean() # Average items per transaction
         }
 
     def calculate_anomalies(self, limit: int = 3) -> List[Dict]:
@@ -248,6 +256,9 @@ class AdvancedAnalytics:
 
     def calculate_recommendations(self) -> List[Dict]:
         """Generate recommendations based on analysis"""
+        from modules.translations import get_text
+
+        lang = self.analyzer.config.get('language', 'ENG')
         recommendations = []
 
         # Get insights
@@ -259,101 +270,122 @@ class AdvancedAnalytics:
         # Revenue concentration recommendation
         if pareto['revenue_from_top_pct'] > 80:
             recommendations.append({
-                'priority': 'HIGH',
+                'priority': get_text('priority_high', lang),
                 'category': 'Risk Management',
-                'title': 'Diversify Revenue Sources',
-                'description': f"Your top {pareto['top_products_pct']:.0f}% of products generate {pareto['revenue_from_top_pct']:.1f}% of revenue",
-                'action': 'Develop marketing campaigns for mid-tier products to reduce concentration risk',
-                'expected_impact': 'Reduce business risk by 30%',
+                'title': get_text('rec_promote_top_title', lang),
+                'description': get_text('rec_promote_top_desc', lang),
+                'action': get_text('rec_promote_top_action', lang),
+                'expected_impact': get_text('rec_promote_top_impact', lang),
                 'timeframe': '3 months'
             })
 
         # Inventory optimization
         if inventory['dead_stock_count'] > 5:
             recommendations.append({
-                'priority': 'HIGH',
+                'priority': get_text('priority_high', lang),
                 'category': 'Cash Flow',
-                'title': 'Liquidate Dead Inventory',
-                'description': f"{inventory['dead_stock_count']} products haven't sold recently",
-                'action': 'Run clearance sale with 30-50% discounts on dead stock',
-                'expected_impact': f"Free up cash and storage space",
-                'timeframe': '2 weeks'
+                'title': get_text('rec_clear_dead_stock_title', lang),
+                'description': get_text('rec_clear_dead_stock_desc', lang, count=inventory['dead_stock_count']),
+                'action': get_text('rec_clear_dead_stock_action', lang),
+                'expected_impact': get_text('rec_clear_dead_stock_impact', lang),
+                'timeframe': get_text('timeline_1_2_weeks', lang)
             })
 
         # Cross-selling opportunities
         if cross_sell:
             top_bundle = cross_sell[0]
+            bundle_title = 'Implement Product Bundling' if lang == 'ENG' else 'Implementar Paquetes de Productos'
+            bundle_desc = f"Products frequently bought together: {top_bundle['product_1'][:30]} & {top_bundle['product_2'][:30]}" if lang == 'ENG' else f"Productos comprados juntos frecuentemente: {top_bundle['product_1'][:30]} & {top_bundle['product_2'][:30]}"
+            bundle_action = 'Create bundle offers with 5-10% discount' if lang == 'ENG' else 'Crear ofertas de paquetes con 5-10% descuento'
+            bundle_impact = 'Increase average transaction value by 15%' if lang == 'ENG' else 'Aumentar valor promedio de transacción en 15%'
+            bundle_timeframe = '1 month' if lang == 'ENG' else '1 mes'
+
             recommendations.append({
-                'priority': 'MEDIUM',
+                'priority': get_text('priority_medium', lang),
                 'category': 'Revenue Growth',
-                'title': 'Implement Product Bundling',
-                'description': f"Products frequently bought together: {top_bundle['product_1'][:30]} & {top_bundle['product_2'][:30]}",
-                'action': 'Create bundle offers with 5-10% discount',
-                'expected_impact': 'Increase average transaction value by 15%',
-                'timeframe': '1 month'
+                'title': bundle_title,
+                'description': bundle_desc,
+                'action': bundle_action,
+                'expected_impact': bundle_impact,
+                'timeframe': bundle_timeframe
             })
 
         # Trend-based recommendation
         if forecast.get('trend') == 'decreasing':
             recommendations.append({
-                'priority': 'HIGH',
+                'priority': get_text('priority_high', lang),
                 'category': 'Revenue Protection',
-                'title': 'Address Declining Revenue Trend',
-                'description': 'Revenue showing downward trend in recent period',
-                'action': 'Review pricing strategy and launch customer retention campaign',
-                'expected_impact': 'Stabilize revenue decline',
-                'timeframe': 'Immediate'
+                'title': get_text('rec_address_decline_title', lang),
+                'description': get_text('rec_address_decline_desc', lang),
+                'action': get_text('rec_address_decline_action', lang),
+                'expected_impact': get_text('rec_address_decline_impact', lang),
+                'timeframe': get_text('timeline_immediate', lang)
             })
 
-        return sorted(recommendations, key=lambda x: 0 if x['priority'] == 'HIGH' else 1 if x['priority'] == 'MEDIUM' else 2)
+        return sorted(recommendations, key=lambda x: 0 if x['priority'] in ['HIGH', 'ALTA'] else 1 if x['priority'] in ['MEDIUM', 'MEDIA'] else 2)
 
     # PRINT/FORMAT METHODS
 
     def print_revenue_forecast(self, days_ahead: int = 30) -> str:
         """Format revenue forecast as string"""
+        from modules.translations import get_text
+
+        lang = self.analyzer.config.get('language', 'ENG')
         forecast = self.calculate_revenue_forecast(days_ahead)
 
         if not forecast:
             return "No forecast data available"
 
+        # Translate trend
+        trend_key = forecast['trend'].lower()
+        trend_translated = get_text(trend_key, lang)
+
         forecast_str = []
-        forecast_str.append(f"📈 Revenue Forecast for next {days_ahead} days:")
-        forecast_str.append(f" Daily:")
-        forecast_str.append(f" - Average: {self.analyzer.format_currency(forecast['forecast_daily_avg'])}")
-        forecast_str.append(f" - Std Dev: {self.analyzer.format_currency(forecast['daily_std_dev'])}")
-        forecast_str.append(f" - 95% Confidence Interval: ({self.analyzer.format_currency(forecast['confidence_interval_daily'][0])}, {self.analyzer.format_currency(forecast['confidence_interval_daily'][1])})")
-        forecast_str.append(f" Total:")
-        forecast_str.append(f" - Forecast: {self.analyzer.format_currency(forecast['forecast_total'])}")
-        forecast_str.append(f" - 95% Confidence Interval: ({self.analyzer.format_currency(forecast['confidence_interval_total'][0])}, {self.analyzer.format_currency(forecast['confidence_interval_total'][1])})")
-        forecast_str.append(f" - Trend: {forecast['trend'].capitalize()}")
+        forecast_str.append(f"📈 {get_text('revenue_forecast', lang, days=days_ahead)}")
+        forecast_str.append(f" {get_text('daily', lang)}")
+        forecast_str.append(f" - {get_text('average', lang)}: {self.analyzer.format_currency(forecast['forecast_daily_avg'])}")
+        forecast_str.append(f" - {get_text('std_dev', lang)}: {self.analyzer.format_currency(forecast['daily_std_dev'])}")
+        forecast_str.append(f" - 95% {get_text('confidence_interval', lang)}: ({self.analyzer.format_currency(forecast['confidence_interval_daily'][0])}, {self.analyzer.format_currency(forecast['confidence_interval_daily'][1])})")
+        forecast_str.append(f" {get_text('total', lang)}")
+        forecast_str.append(f" - {get_text('forecast', lang)}: {self.analyzer.format_currency(forecast['forecast_total'])}")
+        forecast_str.append(f" - 95% {get_text('confidence_interval', lang)}: ({self.analyzer.format_currency(forecast['confidence_interval_total'][0])}, {self.analyzer.format_currency(forecast['confidence_interval_total'][1])})")
+        forecast_str.append(f" - {get_text('trend', lang)}: {trend_translated.capitalize()}")
 
         return "\n".join(forecast_str)
 
     def print_cross_sell_opportunities(self, min_support: float = 0.01, limit: int = 3) -> str:
         """Format cross-sell opportunities as string"""
+        from modules.translations import get_text
+
+        lang = self.analyzer.config.get('language', 'ENG')
         opportunities = self.calculate_cross_sell_opportunities(min_support, limit)
 
         if not opportunities:
-            return "ℹ️ No significant cross-sell opportunities found."
+            return f"ℹ️ {get_text('no_cross_sell', lang)}"
 
         xsell_str = []
-        xsell_str.append("🛍️ Cross-Sell Opportunities:")
+        xsell_str.append(f"🛍️ {get_text('cross_sell_opportunities', lang)}")
         for opp in opportunities:
             xsell_str.append(f"  • {opp['product_1'][:30]} & {opp['product_2'][:30]}")
-            xsell_str.append(f"    Frequency: {opp['frequency']} | Support: {opp['support']:.2f}%")
+            freq_label = "Frequency" if lang == 'ENG' else "Frecuencia"
+            support_label = "Support" if lang == 'ENG' else "Soporte"
+            xsell_str.append(f"    {freq_label}: {opp['frequency']} | {support_label}: {opp['support']:.2f}%")
             xsell_str.append(f"    → {opp['recommendation']}")
 
         return "\n".join(xsell_str)
 
     def print_anomalies(self, limit: int = 3) -> str:
         """Format anomalies as string"""
+        from modules.translations import get_text
+
+        lang = self.analyzer.config.get('language', 'ENG')
         anomalies = self.calculate_anomalies(limit)
 
         if not anomalies:
-            return "ℹ️ No anomalies detected."
+            return f"ℹ️ {get_text('no_anomalies', lang)}"
 
         anomalies_str = []
-        anomalies_str.append("⚠️ Anomalies Detected:")
+        anomalies_str.append(f"⚠️ {get_text('anomalies_detected', lang)}")
         for anomaly in anomalies:
             anomalies_str.append(f"  • {anomaly['description']}")
 
@@ -361,42 +393,55 @@ class AdvancedAnalytics:
 
     def print_recommendations(self) -> str:
         """Format recommendations as string"""
+        from modules.translations import get_text
+
+        lang = self.analyzer.config.get('language', 'ENG')
         recommendations = self.calculate_recommendations()
 
         if not recommendations:
-            return "ℹ️ No actionable recommendations found."
+            return f"ℹ️ {get_text('no_recommendations', lang)}"
 
         recmm_str = []
-        recmm_str.append("\n💡 TOP RECOMMENDATIONS:")
+        recmm_str.append(f"\n💡 {get_text('top_recommendations', lang)}")
         for i, rec in enumerate(recommendations[:3], 1):
             recmm_str.append(f"\n{i}. [{rec['priority']}] {rec['title']}")
             recmm_str.append(f"   {rec['description']}")
-            recmm_str.append(f"   Action: {rec['action']}")
-            recmm_str.append(f"   Impact: {rec['expected_impact']} | Timeline: {rec['timeframe']}")
+            recmm_str.append(f"   {get_text('action', lang)}: {rec['action']}")
+            recmm_str.append(f"   {get_text('expected_impact', lang)}: {rec['expected_impact']} | {get_text('timeline', lang)}: {rec['timeframe']}")
 
         return "\n".join(recmm_str)
-    
-    def print_customer_segmentation(self) -> str:
+
+    def print_customer_segmentation(self, debug: bool = False) -> str:
         """Format customer segmentation as string"""
-        rfm_segmentation = self.calculate_customer_segmentation_rfm()
-        
+        from modules.translations import get_text, translate_segment_name
+
+        lang = self.analyzer.config.get('language', 'ENG')
+        rfm_segmentation = self.calculate_customer_segmentation_rfm(debug=debug)
+
         # Format output
         rfm_str = []
-        rfm_str.append("👥 Customer/Transaction Segmentation Analysis\n")
+        rfm_str.append(f"👥 {get_text('customer_segmentation', lang)}\n")
         if 'segments' in rfm_segmentation:
-            rfm_str.append("Customer Segments:")
+            rfm_str.append(get_text('customer_segments', lang))
             for segment, count in rfm_segmentation['segments'].items():
-                rfm_str.append(f"  • {segment}: {count} customers")
-            rfm_str.append(f"\nTotal Customers: {rfm_segmentation['total_customers']}")
-            rfm_str.append(f"Avg Recency: {rfm_segmentation['avg_recency']:.1f} days")
-            rfm_str.append(f"Avg Frequency: {rfm_segmentation['avg_frequency']:.1f} transactions")
-            rfm_str.append(f"Avg Monetary: {self.analyzer.format_currency(rfm_segmentation['avg_monetary'])}")
+                segment_translated = translate_segment_name(segment, lang)
+                customers_label = get_text('customers', lang)
+                rfm_str.append(f"  • {segment_translated}: {count} {customers_label}")
+
+            days_label = get_text('days', lang)
+            transactions_label = get_text('transactions', lang)
+
+            rfm_str.append(f"\n{get_text('total_customers', lang)}: {rfm_segmentation['total_customers']}")
+            rfm_str.append(f"{get_text('avg_recency', lang)}: {rfm_segmentation['avg_recency']:.1f} {days_label}")
+            rfm_str.append(f"{get_text('avg_frequency', lang)}: {rfm_segmentation['avg_frequency']:.1f} {transactions_label}")
+            rfm_str.append(f"{get_text('avg_monetary', lang)}: {self.analyzer.format_currency(rfm_segmentation['avg_monetary'])}")
         else:
-            rfm_str.append("Transaction Size Segments:")
+            rfm_str.append(f"{get_text('transaction_segments', lang)}")
             for segment, count in rfm_segmentation['transaction_segments'].items():
-                rfm_str.append(f"  • {segment}: {count} transactions")
-            rfm_str.append(f"\nAvg Transaction Size: {self.analyzer.format_currency(rfm_segmentation['avg_transaction_size'])}")
-            rfm_str.append(f"Avg Items per Transaction: {rfm_segmentation['avg_items_per_transaction']:.1f}")
+                transactions_label = get_text('transactions', lang)
+                rfm_str.append(f"  • {segment}: {count} {transactions_label}")
+            rfm_str.append(f"\n{get_text('avg_transaction_size', lang)}: {self.analyzer.format_currency(rfm_segmentation['avg_transaction_size'])}")
+            rfm_str.append(f"{get_text('avg_items_per_transaction', lang)}: {rfm_segmentation['avg_items_per_transaction']:.1f}")
 
         return '\n'.join(rfm_str)
 
@@ -430,8 +475,12 @@ class AdvancedAnalytics:
         for segment in self.rfm_data['Segment'].unique():
             segment_customers = self.rfm_data[self.rfm_data['Segment'] == segment].copy()
 
-            # Sort by Monetary value (highest spenders first)
-            segment_customers = segment_customers.sort_values('Monetary', ascending=False)
+            # Sort by composite RFM score (Recency ascending=best is lowest days, Frequency & Monetary descending)
+            # Priority: Recency first (most recent), then Frequency, then Monetary
+            segment_customers = segment_customers.sort_values(
+                by=['Recency', 'Frequency', 'Monetary'],
+                ascending=[True, False, False]
+            )
 
             # Get top N customers
             top_customers = segment_customers.head(top_n)
@@ -466,6 +515,9 @@ class AdvancedAnalytics:
 
     def print_detailed_customer_segments(self, top_n: int = 5) -> str:
         """Format detailed customer segmentation as string"""
+        from modules.translations import get_text, translate_segment_name
+
+        lang = self.analyzer.config.get('language', 'ENG')
         detailed_segments = self.calculate_detailed_customer_segments(top_n=top_n)
 
         if 'error' in detailed_segments:
@@ -485,8 +537,20 @@ class AdvancedAnalytics:
 
         output = []
         output.append("=" * 60)
-        output.append("DETAILED CUSTOMER SEGMENTATION REPORT")
+        output.append(get_text('detailed_segmentation_report', lang))
         output.append("=" * 60)
+        output.append("")
+
+        # Add RFM explanation section
+        output.append("┌" + "─" * 58 + "┐")
+        output.append("│ " + get_text('rfm_explanation_title', lang).ljust(57) + "│")
+        output.append("├" + "─" * 58 + "┤")
+        output.append(f"│ • {get_text('rfm_r_label', lang)}: {get_text('rfm_r_desc', lang)}".ljust(59) + "│")
+        output.append(f"│ • {get_text('rfm_f_label', lang)}: {get_text('rfm_f_desc', lang)}".ljust(59) + "│")
+        output.append(f"│ • {get_text('rfm_m_label', lang)}: {get_text('rfm_m_desc', lang)}".ljust(59) + "│")
+        output.append("│" + " " * 58 + "│")
+        output.append(f"│ ℹ️  {get_text('rfm_quartile_note', lang)}".ljust(59) + "│")
+        output.append("└" + "─" * 58 + "┘")
         output.append("")
 
         # Process segments in order
@@ -496,8 +560,10 @@ class AdvancedAnalytics:
 
             segment_data = detailed_segments[segment]
             emoji = segment_emojis.get(segment, '📊')
+            segment_translated = translate_segment_name(segment, lang)
+            customers_label = get_text('customers', lang)
 
-            output.append(f"\n{emoji} {segment.upper()} ({segment_data['total_count']} customers)")
+            output.append(f"\n{emoji} {segment_translated.upper()} ({segment_data['total_count']} {customers_label})")
             output.append("━" * 60)
 
             for i, customer in enumerate(segment_data['top_customers'], 1):
@@ -509,16 +575,29 @@ class AdvancedAnalytics:
                     customer_line += f" ({customer['location']})"
                 output.append(customer_line)
 
-                output.append(f"    💰 Total Revenue: {self.analyzer.format_currency(customer['monetary'])}")
-                output.append(f"    📅 Last Purchase: {int(customer['recency'])} day{'s' if customer['recency'] != 1 else ''} ago")
-                output.append(f"    🔄 Transactions: {int(customer['frequency'])} purchase{'s' if customer['frequency'] != 1 else ''}")
+                # Get labels
+                recency_days = int(customer['recency'])
+                day_label = get_text('day' if recency_days == 1 else 'days', lang)
+                freq_count = int(customer['frequency'])
+                purchase_label = get_text('purchase' if freq_count == 1 else 'purchases', lang)
+
+                output.append(f"    💰 {get_text('total_revenue', lang)}: {self.analyzer.format_currency(customer['monetary'])}")
+                output.append(f"    📅 {get_text('last_purchase', lang)}: {recency_days} {day_label} {get_text('ago', lang)}")
+                output.append(f"    🔄 {get_text('transactions', lang).capitalize()}: {freq_count} {purchase_label}")
                 output.append("")
-                output.append(f"    📊 RFM Score: R[{customer['recency_quartile']}] F[{customer['frequency_quartile']}] M[{customer['monetary_quartile']}]")
+
+                # Format RFM score - use actual days for R if it's an interval, otherwise use segment notation
+                r_display = customer['recency_quartile']
+                if isinstance(r_display, (float, int)) or (isinstance(r_display, str) and ',' in str(r_display)):
+                    # It's an interval or numeric, show actual days value
+                    r_display = f"{recency_days}d"
+
+                output.append(f"    📊 {get_text('rfm_score', lang)}: R[{r_display}] F[{customer['frequency_quartile']}] M[{customer['monetary_quartile']}]")
                 output.append("")
 
                 # Generate explanation
-                explanation = self._generate_segment_explanation(segment, customer)
-                output.append(f"    ✨ Why {segment}?")
+                explanation = self._generate_segment_explanation(segment, customer, lang)
+                output.append(f"    ✨ {get_text('why_segment', lang, segment=segment_translated)}?")
                 for line in explanation:
                     output.append(f"    {line}")
 
@@ -529,8 +608,10 @@ class AdvancedAnalytics:
 
         return '\n'.join(output)
 
-    def _generate_segment_explanation(self, segment: str, customer: Dict) -> list:
+    def _generate_segment_explanation(self, segment: str, customer: Dict, lang: str = 'ENG') -> list:
         """Generate business-friendly explanation for why customer is in segment"""
+        from modules.translations import get_text
+
         explanations = []
 
         r_q = customer['recency_quartile']
@@ -538,26 +619,26 @@ class AdvancedAnalytics:
         m_q = customer['monetary_quartile']
 
         if segment == 'Champions':
-            explanations.append("• Purchased very recently (top tier recency)")
-            explanations.append("• High purchase frequency (top tier loyalty)")
-            explanations.append("• High total spending (top tier revenue)")
+            explanations.append(f"• {get_text('exp_purchased_recently', lang)}")
+            explanations.append(f"• {get_text('exp_high_frequency', lang)}")
+            explanations.append(f"• {get_text('exp_high_spending', lang)}")
         elif segment == 'Loyal Customers':
-            explanations.append("• High purchase frequency (top tier loyalty)")
-            if m_q in ['Q3', 'Q4', '3', '2']:  # High monetary
-                explanations.append("• Strong revenue contribution")
-            explanations.append("• Regular customer with consistent orders")
+            explanations.append(f"• {get_text('exp_high_frequency', lang)}")
+            if m_q in ['S3', 'S4', 'Q3', 'Q4', '3', '2']:  # High monetary (support both S and Q notation)
+                explanations.append(f"• {get_text('exp_strong_revenue', lang)}")
+            explanations.append(f"• {get_text('exp_regular_customer', lang)}")
         elif segment == 'Recent Customers':
-            explanations.append("• Purchased very recently (top tier recency)")
-            explanations.append("• Building purchase history")
-            explanations.append("• Potential for increased engagement")
+            explanations.append(f"• {get_text('exp_purchased_recently', lang)}")
+            explanations.append(f"• {get_text('exp_building_history', lang)}")
+            explanations.append(f"• {get_text('exp_potential_engagement', lang)}")
         elif segment == 'At Risk':
-            explanations.append("• Haven't purchased recently (needs attention)")
-            explanations.append("• Risk of customer churn")
-            explanations.append("• Recommended: Re-engagement campaign")
+            explanations.append(f"• {get_text('exp_not_purchased', lang)}")
+            explanations.append(f"• {get_text('exp_churn_risk', lang)}")
+            explanations.append(f"• {get_text('exp_reengagement', lang)}")
         elif segment == 'Need Attention':
-            explanations.append("• Moderate engagement levels")
-            explanations.append("• Opportunity for improvement")
-            explanations.append("• Recommended: Targeted promotions")
+            explanations.append(f"• {get_text('exp_moderate_engagement', lang)}")
+            explanations.append(f"• {get_text('exp_opportunity', lang)}")
+            explanations.append(f"• {get_text('exp_targeted_promo', lang)}")
 
         return explanations
 
@@ -573,8 +654,12 @@ class AdvancedAnalytics:
         Note:
             To save the figure, use fig.savefig() or a utility function
         """
+        from modules.translations import get_text, translate_day_name
+
+        lang = self.analyzer.config.get('language', 'ENG')
+
         fig, axes = plt.subplots(2, 2, figsize=figsize)
-        fig.suptitle('Business Trend Analysis', fontsize=16, fontweight='bold')
+        fig.suptitle(get_text('trend_analysis_title', lang), fontsize=16, fontweight='bold')
 
         # 1. Revenue Trend
         ax1 = axes[0, 0]
@@ -583,11 +668,11 @@ class AdvancedAnalytics:
         )[self.analyzer.config['revenue_col']].sum()
 
         ax1.plot(daily_revenue.index, daily_revenue.values, color='#2E86AB', linewidth=1, alpha=0.5)
-        ax1.plot(daily_revenue.index, daily_revenue.rolling(7).mean(), color='#D62828', linewidth=2, label='7-day MA')
+        ax1.plot(daily_revenue.index, daily_revenue.rolling(7).mean(), color='#D62828', linewidth=2, label=get_text('moving_average_7d', lang))
         ax1.fill_between(daily_revenue.index, 0, daily_revenue.values, alpha=0.3, color='#2E86AB')
-        ax1.set_title('Revenue Trend', fontweight='bold')
-        ax1.set_xlabel('Date')
-        ax1.set_ylabel('Revenue')
+        ax1.set_title(get_text('revenue_trend', lang), fontweight='bold')
+        ax1.set_xlabel(get_text('date_label', lang))
+        ax1.set_ylabel(get_text('revenue_label', lang))
         ax1.legend()
         ax1.grid(True, alpha=0.3)
 
@@ -598,9 +683,9 @@ class AdvancedAnalytics:
         )[self.analyzer.config['transaction_col']].nunique()
 
         ax2.bar(daily_trans.index, daily_trans.values, color='#52B788', alpha=0.7)
-        ax2.set_title('Daily Transactions', fontweight='bold')
-        ax2.set_xlabel('Date')
-        ax2.set_ylabel('Number of Transactions')
+        ax2.set_title(get_text('daily_transactions_title', lang), fontweight='bold')
+        ax2.set_xlabel(get_text('date_label', lang))
+        ax2.set_ylabel(get_text('num_transactions', lang))
         ax2.grid(True, alpha=0.3, axis='y')
 
         # 3. Product Mix Evolution
@@ -620,9 +705,9 @@ class AdvancedAnalytics:
                         product_data[self.analyzer.config['revenue_col']],
                         marker='o', label=label, linewidth=2)
 
-        ax3.set_title('Top 5 Products Weekly Performance', fontweight='bold')
-        ax3.set_xlabel('Week')
-        ax3.set_ylabel('Revenue')
+        ax3.set_title(get_text('top_products_weekly', lang), fontweight='bold')
+        ax3.set_xlabel(get_text('week_label', lang))
+        ax3.set_ylabel(get_text('revenue_label', lang))
         ax3.legend(fontsize=8)
         ax3.grid(True, alpha=0.3)
 
@@ -633,12 +718,16 @@ class AdvancedAnalytics:
             day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
             dow_revenue = dow_revenue.reindex(day_order, fill_value=0)
 
+            # Translate day names for display
+            from modules.translations import translate_day_name
+            day_labels = [translate_day_name(day, lang) for day in day_order]
+
             colors = ['#D62828' if day in ['Saturday', 'Sunday'] else '#2E86AB' for day in day_order]
             bars = ax4.bar(range(7), dow_revenue.values, color=colors, alpha=0.8)
             ax4.set_xticks(range(7))
-            ax4.set_xticklabels([d[:3] for d in day_order])
-            ax4.set_title('Average Revenue by Day of Week', fontweight='bold')
-            ax4.set_ylabel('Average Revenue')
+            ax4.set_xticklabels([d[:3] for d in day_labels])
+            ax4.set_title(get_text('avg_revenue_by_dow', lang), fontweight='bold')
+            ax4.set_ylabel(get_text('revenue_label', lang))
             ax4.grid(True, alpha=0.3, axis='y')
 
         plt.tight_layout()

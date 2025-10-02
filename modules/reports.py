@@ -39,26 +39,39 @@ def weekly_comparison_report(analyzer) -> str:
         changes[metric] = change
         
     # Print report
+    from modules.translations import get_text
+
+    lang = analyzer.config.get('language', 'ENG')
+
     report_lines = []
     report_lines.append("=" * 60)
-    report_lines.append("WEEKLY COMPARISON REPORT")
+    report_lines.append(get_text('weekly_comparison', lang))
     report_lines.append("=" * 60)
-    
+
+    # Translate metric names
+    metric_translations = {
+        'Revenue': get_text('revenue', lang),
+        'Transactions': get_text('transactions', lang).capitalize(),
+        'Products Sold': get_text('products_sold', lang),
+        'Avg Transaction': get_text('avg_transaction', lang)
+    }
+
     for metric in ['Revenue', 'Transactions', 'Products Sold', 'Avg Transaction']:
         arrow = '↑' if changes[metric] > 0 else '↓' if changes[metric] < 0 else '→'
         color = '🟢' if changes[metric] > 0 else '🔴' if changes[metric] < -5 else '🟡'
-        
+
         if metric == 'Revenue' or metric == 'Avg Transaction':
             last_val = analyzer.format_currency(metrics['Last Week'][metric])
             prev_val = analyzer.format_currency(metrics['Previous Week'][metric])
         else:
             last_val = f"{metrics['Last Week'][metric]:,}"
             prev_val = f"{metrics['Previous Week'][metric]:,}"
-        
-        report_lines.append(f"\n{metric}:")
-        report_lines.append(f"  Last Week:     {last_val}")
-        report_lines.append(f"  Previous Week: {prev_val}")
-        report_lines.append(f"  Change:        {color} {arrow} {abs(changes[metric]):.2f}%")
+
+        metric_label = metric_translations.get(metric, metric)
+        report_lines.append(f"\n{metric_label}:")
+        report_lines.append(f"  {get_text('last_week', lang)}:     {last_val}")
+        report_lines.append(f"  {get_text('previous_week', lang)}: {prev_val}")
+        report_lines.append(f"  {get_text('change', lang)}:        {color} {arrow} {abs(changes[metric]):.2f}%")
     
     report_str = "\n".join(report_lines)
     
@@ -69,14 +82,16 @@ def product_velocity_matrix(analyzer, save: bool = False):
     import matplotlib.pyplot as plt
     import matplotlib.patheffects as pe
     from matplotlib.ticker import FuncFormatter
-    
+    from modules.translations import get_text
+
+    lang = analyzer.config.get('language', 'ENG')
     out_dir = analyzer.out_dir
-    
+
     # Get product metrics
     products = analyzer.product_analysis.head(20) # Top 20 products by revenue
     scale = 10000 # Adjusted size divisor for better scaling
     fig, ax = plt.subplots(figsize=(10, 8)) # Larger figure for clarity
-    
+
     scatter = ax.scatter(
         products[analyzer.config['quantity_col']], # Units sold
         products[analyzer.config['revenue_col']], # Revenue
@@ -86,33 +101,34 @@ def product_velocity_matrix(analyzer, save: bool = False):
         cmap='nipy_spectral', # Color map
         edgecolors='w', linewidths=0.5
     )
-    
+
     # Add quadrant lines
-    ax.axvline(products[analyzer.config['quantity_col']].median(), 
+    ax.axvline(products[analyzer.config['quantity_col']].median(),
               color='gray', linestyle='--', alpha=0.5) # Vertical median line
-    ax.axhline(products[analyzer.config['revenue_col']].median(), 
+    ax.axhline(products[analyzer.config['revenue_col']].median(),
               color='gray', linestyle='--', alpha=0.5) # Horizontal median line
-    
+
     # Labels
-    ax.set_xlabel('Units Sold', fontsize=12) # X-axis label
-    ax.set_ylabel('Total Revenue', fontsize=12) # Y-axis label
-    ax.set_title('Product Velocity Matrix\n(Size = Revenue)', fontsize=14, fontweight='bold') # Title
-    
+    ax.set_xlabel(get_text('units_sold', lang), fontsize=12) # X-axis label
+    ax.set_ylabel(get_text('total_revenue_label', lang), fontsize=12) # Y-axis label
+    ax.set_title(f'{get_text("velocity_matrix_title", lang)}\n({get_text("size_revenue", lang)})',
+                fontsize=14, fontweight='bold') # Title
+
     # Add quadrant labels
-    ax.text(0.95, 0.95, 'Stars\n(High Revenue, High Volume)', 
-           transform=ax.transAxes, ha='right', va='top', fontsize=10, 
+    ax.text(0.95, 0.95, f'{get_text("quadrant_stars", lang)}\n({get_text("quadrant_stars_desc", lang)})',
+           transform=ax.transAxes, ha='right', va='top', fontsize=10,
            bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.5)) # Top-right
-    ax.text(0.05, 0.95, 'Premium\n(High Revenue, Low Volume)', 
+    ax.text(0.05, 0.95, f'{get_text("quadrant_premium", lang)}\n({get_text("quadrant_premium_desc", lang)})',
            transform=ax.transAxes, ha='left', va='top', fontsize=10,
            bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.5)) # Top-left
-    ax.text(0.95, 0.05, 'Volume\n(Low Revenue, High Volume)', 
+    ax.text(0.95, 0.05, f'{get_text("quadrant_volume", lang)}\n({get_text("quadrant_volume_desc", lang)})',
            transform=ax.transAxes, ha='right', va='bottom', fontsize=10,
            bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.5)) # Bottom-right
-    ax.text(0.05, 0.05, 'Question\n(Low Revenue, Low Volume)', 
+    ax.text(0.05, 0.05, f'{get_text("quadrant_question", lang)}\n({get_text("quadrant_question_desc", lang)})',
            transform=ax.transAxes, ha='left', va='bottom', fontsize=10,
            bbox=dict(boxstyle='round', facecolor='lightcoral', alpha=0.5)) # Bottom-left
-    
-    cb = plt.colorbar(scatter, label='Product Rank') # Colorbar for product ranking
+
+    cb = plt.colorbar(scatter, label=get_text('product_rank_label', lang)) # Colorbar for product ranking
     # Invert the colorbar so low values appear at the top and high values at the bottom
     try:
         cb.ax.invert_yaxis()

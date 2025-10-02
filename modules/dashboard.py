@@ -50,6 +50,10 @@ class ExecutiveDashboard:
     # PRIVATE METHODS
     def _create_kpi_cards(self, fig, gridspec, kpis):
         """Create KPI metric cards"""
+        from modules.translations import get_text
+
+        lang = self.analyzer.config.get('language', 'ENG')
+
         # gridspec may be a SubplotSpec (e.g. gs[0, :]) spanning the full top row.
         # Create a nested sub-gridspec with 1 row x 4 cols to place four KPI cards.
         try:
@@ -62,29 +66,29 @@ class ExecutiveDashboard:
 
         # Create 4 subplots for KPIs
         axes = [fig.add_subplot(sub_gs[0, i]) for i in range(4)]
-        
+
         # KPI data
         kpi_configs = [
             {
-                'title': 'Total Revenue',
+                'title': get_text('kpi_total_revenue', lang),
                 'value': self.analyzer.format_currency(kpis.get('total_revenue', 0)),
                 'change': kpis.get('revenue_growth', 0),
                 'color': self.colors['primary']
             },
             {
-                'title': 'Transactions',
+                'title': get_text('kpi_transactions', lang),
                 'value': f"{kpis.get('total_transactions', 0):,}",
                 'change': None,
                 'color': self.colors['success']
             },
             {
-                'title': 'Avg Transaction',
+                'title': get_text('kpi_avg_transaction', lang),
                 'value': self.analyzer.format_currency(kpis.get('avg_transaction_value', 0)),
                 'change': None,
                 'color': self.colors['warning']
             },
             {
-                'title': 'Active Products',
+                'title': get_text('kpi_active_products', lang),
                 'value': f"{kpis.get('total_products', 0):,}",
                 'change': None,
                 'color': self.colors['dark']
@@ -122,10 +126,14 @@ class ExecutiveDashboard:
     
     def _create_pareto_chart(self, ax, pareto):
         """Create Pareto chart for revenue concentration"""
+        from modules.translations import get_text
+
+        lang = self.analyzer.config.get('language', 'ENG')
+
         if not pareto or not pareto.get('top_products_list'):
             ax.text(0.5, 0.5, 'No data available', ha='center', va='center')
             return
-        
+
         # Get top 10 products
         products = pareto['top_products_list'][:10]
         names = [p[self.analyzer.config['description_col']][:20] + '...'
@@ -133,16 +141,21 @@ class ExecutiveDashboard:
                 else p[self.analyzer.config['description_col']]
                 for p in products]
         revenues = [p[self.analyzer.config['revenue_col']] for p in products]
-        
+
         # Create horizontal bar chart
         y_pos = np.arange(len(names))
         bars = ax.barh(y_pos, revenues, color=self.colors['primary'], alpha=0.8)
-        
+
         # Customize
         ax.set_yticks(y_pos)
         ax.set_yticklabels(names, fontsize=9)
-        ax.set_xlabel('Revenue', fontsize=10)
-        ax.set_title(f'Top 10 Revenue Generators\n({pareto["top_products_pct"]:.0f}% of products = {pareto["revenue_from_top_pct"]:.1f}% of revenue)',
+        ax.set_xlabel(get_text('revenue_axis', lang), fontsize=10)
+
+        title = get_text('top_revenue_generators_title', lang, n=10)
+        subtitle = get_text('pareto_subtitle', lang,
+                           pct=f"{pareto['top_products_pct']:.0f}",
+                           revenue_pct=f"{pareto['revenue_from_top_pct']:.1f}")
+        ax.set_title(f'{title}\n({subtitle})',
                     fontsize=11, fontweight='bold', pad=10)
         
         # Add value labels
@@ -166,6 +179,9 @@ class ExecutiveDashboard:
             return
         
         # Prepare data
+        from modules.translations import translate_status_name
+        lang = self.analyzer.config.get('language', 'ENG')
+
         status_order = ['Hot', 'Active', 'Slowing', 'Cold', 'Dead', 'Zombie']
         status_colors = {
             'Hot': self.colors['success'],
@@ -175,14 +191,15 @@ class ExecutiveDashboard:
             'Dead': self.colors['danger'],
             'Zombie': '#8B0000'
         }
-        
+
         labels = []
         sizes = []
         colors = []
-        
+
         for status in status_order:
             if status in status_dist and status_dist[status] > 0:
-                labels.append(f"{status}\n({status_dist[status]})")
+                translated_status = translate_status_name(status, lang)
+                labels.append(f"{translated_status}\n({status_dist[status]})")
                 sizes.append(status_dist[status])
                 colors.append(status_colors[status])
         
@@ -197,11 +214,14 @@ class ExecutiveDashboard:
         
         # Add center text
         healthy_pct = inventory.get('healthy_stock_pct', 0)
-        ax.text(0, 0, f'{healthy_pct:.0f}%\nHealthy', 
+        from modules.translations import get_text
+        lang = self.analyzer.config.get('language', 'ENG')
+
+        ax.text(0, 0, f'{healthy_pct:.0f}%\n{get_text("healthy_label", lang)}',
                ha='center', va='center', fontsize=14, fontweight='bold',
                color=self.colors['success'] if healthy_pct > 70 else self.colors['warning'])
-        
-        ax.set_title('Inventory Health Status', fontsize=11, fontweight='bold', pad=20)
+
+        ax.set_title(get_text('inventory_health_title', lang), fontsize=11, fontweight='bold', pad=20)
         
         # Style text
         for text in texts:
@@ -213,12 +233,15 @@ class ExecutiveDashboard:
     
     def _create_alerts_panel(self, ax, alerts):
         """Create alerts and recommendations panel"""
+        from modules.translations import get_text
+        lang = self.analyzer.config.get('language', 'ENG')
+
         ax.axis('off')
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
-        
+
         # Title
-        ax.text(0.5, 0.95, '⚡ Alerts & Actions', 
+        ax.text(0.5, 0.95, f'⚡ {get_text("alerts_actions_title", lang)}',
                ha='center', va='top', fontsize=12, fontweight='bold')
         
         y_position = 0.85
@@ -258,28 +281,31 @@ class ExecutiveDashboard:
     
     def _create_peak_times_chart(self, ax, peak_times):
         """Create peak business times visualization"""
+        from modules.translations import get_text
+        lang = self.analyzer.config.get('language', 'ENG')
+
         if not peak_times or not peak_times.get('hourly_distribution'):
             ax.text(0.5, 0.5, 'No timing data available', ha='center', va='center')
             return
-        
+
         # Prepare data
         hours = list(peak_times['hourly_distribution'].keys())
         revenues = list(peak_times['hourly_distribution'].values())
-        
+
         # Create bar chart
         bars = ax.bar(hours, revenues, color=self.colors['primary'], alpha=0.7, edgecolor='black', linewidth=1)
-        
+
         # Highlight peak hour
         peak_hour = peak_times['peak_hour']
         if peak_hour in hours:
             peak_idx = hours.index(peak_hour)
             bars[peak_idx].set_color(self.colors['success'])
             bars[peak_idx].set_alpha(1.0)
-        
+
         # Customize
-        ax.set_xlabel('Hour of Day', fontsize=10)
-        ax.set_ylabel('Revenue', fontsize=10)
-        ax.set_title(f'Revenue by Hour\nPeak: {peak_times["peak_day"]}s @ {peak_hour}:00', 
+        ax.set_xlabel(get_text('hour_of_day', lang), fontsize=10)
+        ax.set_ylabel(get_text('revenue_axis', lang), fontsize=10)
+        ax.set_title(f'{get_text("revenue_by_hour", lang)}\n{get_text("peak_label", lang)}: {peak_times["peak_day"]}s @ {peak_hour}:00',
                     fontsize=11, fontweight='bold')
         
         # Add grid
@@ -302,11 +328,14 @@ class ExecutiveDashboard:
         Note:
             To save the dashboard, use fig.savefig() or a utility function
         """
+        from modules.translations import get_text
+        lang = self.analyzer.config.get('language', 'ENG')
+
         fig = plt.figure(figsize=figsize, facecolor='white')
         gs = GridSpec(3, 4, figure=fig, hspace=0.3, wspace=0.3)
 
         # Title
-        fig.suptitle('Executive Business Intelligence Dashboard',
+        fig.suptitle(get_text('dashboard_title', lang),
                     fontsize=24, fontweight='bold', y=0.98)
 
         # Get data from analyzer
@@ -336,7 +365,7 @@ class ExecutiveDashboard:
         self._create_peak_times_chart(ax_peak, peak_times)
 
         # Add timestamp
-        fig.text(0.99, 0.01, f'Generated: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")}',
+        fig.text(0.99, 0.01, f'{get_text("generated_label", lang)}: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")}',
                 ha='right', va='bottom', fontsize=8, style='italic', color='gray')
 
         plt.tight_layout()
@@ -356,6 +385,9 @@ class ExecutiveDashboard:
         Note:
             To print or save, use print() or utils.print_info()
         """
+        from modules.translations import get_text
+
+        lang = self.analyzer.config.get('language', 'ENG')
         kpis = self.analyzer.get_kpis()
         alerts = self.analyzer.get_alerts()
         pareto = self.analyzer.get_pareto_insights()
@@ -363,27 +395,28 @@ class ExecutiveDashboard:
 
         summary = []
         summary.append("=" * 60)
-        summary.append("DASHBOARD SUMMARY")
+        summary.append(get_text('dashboard_summary', lang))
         summary.append("=" * 60)
 
         # KPIs
-        summary.append("\n📊 KEY METRICS:")
-        summary.append(f"  • Total Revenue: {self.analyzer.format_currency(kpis['total_revenue'])}")
-        summary.append(f"  • Growth Rate: {kpis['revenue_growth']:.1f}%")
-        summary.append(f"  • Transactions: {kpis['total_transactions']:,}")
+        summary.append(f"\n📊 {get_text('key_metrics', lang)}")
+        summary.append(f"  • {get_text('total_revenue', lang)}: {self.analyzer.format_currency(kpis['total_revenue'])}")
+        summary.append(f"  • {get_text('growth_rate', lang)}: {kpis['revenue_growth']:.1f}%")
+        summary.append(f"  • {get_text('transactions', lang).capitalize()}: {kpis['total_transactions']:,}")
 
         # Critical alerts
         if alerts.get('critical'):
-            summary.append("\n🔴 CRITICAL ACTIONS:")
+            summary.append(f"\n🔴 {get_text('critical_actions_short', lang)}")
             for alert in alerts.get('critical', []):
                 summary.append(f"  • {alert.get('message')}")
                 summary.append(f"    → {alert.get('action')}")
 
         # Prepare output string
-        summary.append("\n💡 KEY INSIGHTS:")
-        summary.append(f"  • Top {pareto.get('top_products_pct', 0):.0f}% of products = {pareto.get('revenue_from_top_pct', 0):.1f}% of revenue")
-        summary.append(f"  • Inventory Health: {inventory.get('healthy_stock_pct', 0):.0f}% healthy")
-        summary.append(f"  • Dead Stock: {inventory.get('dead_stock_count', 0)} products")
+        products_label = get_text('products', lang)
+        summary.append(f"\n💡 {get_text('key_insights', lang)}")
+        summary.append(f"  • Top {pareto.get('top_products_pct', 0):.0f}% {products_label} = {pareto.get('revenue_from_top_pct', 0):.1f}% {get_text('revenue', lang).lower()}")
+        summary.append(f"  • {get_text('inventory_health', lang)}: {inventory.get('healthy_stock_pct', 0):.0f}% healthy")
+        summary.append(f"  • {get_text('dead_stock', lang)}: {inventory.get('dead_stock_count', 0)} {products_label}")
 
         summary.append("\n" + "=" * 60)
 
