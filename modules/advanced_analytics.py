@@ -123,13 +123,13 @@ class AdvancedAnalytics:
 
     def calculate_customer_segmentation_rfm(self) -> Dict:
         """Perform RFM (Recency, Frequency, Monetary) analysis"""
-        if self.analyzer.data is None or 'customer_id' not in self.analyzer.data.columns:
+        if self.analyzer.data is None or self.analyzer.config['customer_col'] not in self.analyzer.data.columns:
             return self._segment_by_transaction_patterns()
 
         # Standard RFM if customer data exists
         analysis_date = pd.Timestamp(self.analyzer.config['analysis_date'])
 
-        rfm = self.analyzer.data.groupby('customer_id').agg({
+        rfm = self.analyzer.data.groupby(self.analyzer.config['customer_col']).agg({
             self.analyzer.config['date_col']: lambda x: (analysis_date - x.max()).days,
             self.analyzer.config['transaction_col']: 'nunique',
             self.analyzer.config['revenue_col']: 'sum'
@@ -137,24 +137,38 @@ class AdvancedAnalytics:
 
         rfm.columns = ['Recency', 'Frequency', 'Monetary']
 
-        # Create segments using quartiles
+        # Create segments using quartiles (or fewer if data has duplicates)
         for col in ['Recency', 'Frequency', 'Monetary']:
-            rfm[f'{col}_Quartile'] = pd.qcut(rfm[col], 4, labels=['Q1', 'Q2', 'Q3', 'Q4'])
+            try:
+                # Try to create quartiles with labels
+                rfm[f'{col}_Quartile'] = pd.qcut(rfm[col], 4, labels=['Q1', 'Q2', 'Q3', 'Q4'])
+            except ValueError:
+                # If quartiles fail due to duplicates, use duplicates='drop' without labels
+                rfm[f'{col}_Quartile'] = pd.qcut(rfm[col], 4, duplicates='drop')
 
-        # Define customer segments
+        # Define customer segments (handle both string labels and numeric values)
         def segment_customers(row):
-            if row['Recency_Quartile'] == 'Q4' and row['Frequency_Quartile'] == 'Q4':
+            # Get max values for each quartile column to handle both labeled and numeric quartiles
+            r_max = rfm['Recency_Quartile'].max()
+            f_max = rfm['Frequency_Quartile'].max()
+            r_min = rfm['Recency_Quartile'].min()
+
+            # Check if it's the highest quartile (best)
+            if row['Recency_Quartile'] == r_max and row['Frequency_Quartile'] == f_max:
                 return 'Champions'
-            elif row['Frequency_Quartile'] == 'Q4':
+            elif row['Frequency_Quartile'] == f_max:
                 return 'Loyal Customers'
-            elif row['Recency_Quartile'] == 'Q4':
+            elif row['Recency_Quartile'] == r_max:
                 return 'Recent Customers'
-            elif row['Recency_Quartile'] == 'Q1':
+            elif row['Recency_Quartile'] == r_min:
                 return 'At Risk'
             else:
                 return 'Need Attention'
 
         rfm['Segment'] = rfm.apply(segment_customers, axis=1)
+
+        # Store RFM data for detailed reports
+        self.rfm_data = rfm.copy()
 
         return {
             'segments': rfm['Segment'].value_counts().to_dict(),
@@ -361,6 +375,191 @@ class AdvancedAnalytics:
             recmm_str.append(f"   Impact: {rec['expected_impact']} | Timeline: {rec['timeframe']}")
 
         return "\n".join(recmm_str)
+    
+    def print_customer_segmentation(self) -> str:
+        """Format customer segmentation as string"""
+        rfm_segmentation = self.calculate_customer_segmentation_rfm()
+        
+        # Format output
+        rfm_str = []
+        rfm_str.append("👥 Customer/Transaction Segmentation Analysis\n")
+        if 'segments' in rfm_segmentation:
+            rfm_str.append("Customer Segments:")
+            for segment, count in rfm_segmentation['segments'].items():
+                rfm_str.append(f"  • {segment}: {count} customers")
+            rfm_str.append(f"\nTotal Customers: {rfm_segmentation['total_customers']}")
+            rfm_str.append(f"Avg Recency: {rfm_segmentation['avg_recency']:.1f} days")
+            rfm_str.append(f"Avg Frequency: {rfm_segmentation['avg_frequency']:.1f} transactions")
+            rfm_str.append(f"Avg Monetary: {self.analyzer.format_currency(rfm_segmentation['avg_monetary'])}")
+        else:
+            rfm_str.append("Transaction Size Segments:")
+            for segment, count in rfm_segmentation['transaction_segments'].items():
+                rfm_str.append(f"  • {segment}: {count} transactions")
+            rfm_str.append(f"\nAvg Transaction Size: {self.analyzer.format_currency(rfm_segmentation['avg_transaction_size'])}")
+            rfm_str.append(f"Avg Items per Transaction: {rfm_segmentation['avg_items_per_transaction']:.1f}")
+
+        return '\n'.join(rfm_str)
+
+    def calculate_detailed_customer_segments(self, top_n: int = 5) -> Dict:
+        """Get detailed customer information for top N customers per segment"""
+        # Ensure RFM calculation has been run
+        if not hasattr(self, 'rfm_data') or self.rfm_data is None:
+            self.calculate_customer_segmentation_rfm()
+
+        if not hasattr(self, 'rfm_data') or self.rfm_data is None:
+            return {'error': 'No customer data available for detailed segmentation'}
+
+        # Get customer metadata (name, location) from original data if available
+        customer_col = self.analyzer.config['customer_col']
+        customer_meta = pd.DataFrame()
+
+        # Build aggregation dictionary dynamically based on available columns
+        agg_dict = {}
+        if 'customer_name' in self.analyzer.data.columns:
+            agg_dict['customer_name'] = 'first'
+        if 'customer_location' in self.analyzer.data.columns:
+            agg_dict['customer_location'] = 'first'
+
+        # Only aggregate if we have metadata columns
+        if agg_dict:
+            customer_meta = self.analyzer.data.groupby(customer_col).agg(agg_dict)
+
+        # Prepare detailed segments
+        detailed_segments = {}
+
+        for segment in self.rfm_data['Segment'].unique():
+            segment_customers = self.rfm_data[self.rfm_data['Segment'] == segment].copy()
+
+            # Sort by Monetary value (highest spenders first)
+            segment_customers = segment_customers.sort_values('Monetary', ascending=False)
+
+            # Get top N customers
+            top_customers = segment_customers.head(top_n)
+
+            customers_list = []
+            for customer_id, row in top_customers.iterrows():
+                customer_info = {
+                    'customer_id': customer_id,
+                    'recency': row['Recency'],
+                    'frequency': row['Frequency'],
+                    'monetary': row['Monetary'],
+                    'recency_quartile': str(row['Recency_Quartile']),
+                    'frequency_quartile': str(row['Frequency_Quartile']),
+                    'monetary_quartile': str(row['Monetary_Quartile'])
+                }
+
+                # Add customer metadata if available
+                if not customer_meta.empty and customer_id in customer_meta.index:
+                    if 'customer_name' in customer_meta.columns:
+                        customer_info['name'] = customer_meta.loc[customer_id, 'customer_name']
+                    if 'customer_location' in customer_meta.columns:
+                        customer_info['location'] = customer_meta.loc[customer_id, 'customer_location']
+
+                customers_list.append(customer_info)
+
+            detailed_segments[segment] = {
+                'total_count': len(segment_customers),
+                'top_customers': customers_list
+            }
+
+        return detailed_segments
+
+    def print_detailed_customer_segments(self, top_n: int = 5) -> str:
+        """Format detailed customer segmentation as string"""
+        detailed_segments = self.calculate_detailed_customer_segments(top_n=top_n)
+
+        if 'error' in detailed_segments:
+            return f"ℹ️ {detailed_segments['error']}"
+
+        # Segment emoji mapping
+        segment_emojis = {
+            'Champions': '🏆',
+            'Loyal Customers': '🔵',
+            'Recent Customers': '🟢',
+            'At Risk': '🔴',
+            'Need Attention': '🟡'
+        }
+
+        # Segment order for display
+        segment_order = ['Champions', 'Loyal Customers', 'Recent Customers', 'Need Attention', 'At Risk']
+
+        output = []
+        output.append("=" * 60)
+        output.append("DETAILED CUSTOMER SEGMENTATION REPORT")
+        output.append("=" * 60)
+        output.append("")
+
+        # Process segments in order
+        for segment in segment_order:
+            if segment not in detailed_segments:
+                continue
+
+            segment_data = detailed_segments[segment]
+            emoji = segment_emojis.get(segment, '📊')
+
+            output.append(f"\n{emoji} {segment.upper()} ({segment_data['total_count']} customers)")
+            output.append("━" * 60)
+
+            for i, customer in enumerate(segment_data['top_customers'], 1):
+                # Build customer header line
+                customer_line = f"\n#{i}: {customer['customer_id']}"
+                if 'name' in customer:
+                    customer_line += f" - {customer['name']}"
+                if 'location' in customer:
+                    customer_line += f" ({customer['location']})"
+                output.append(customer_line)
+
+                output.append(f"    💰 Total Revenue: {self.analyzer.format_currency(customer['monetary'])}")
+                output.append(f"    📅 Last Purchase: {int(customer['recency'])} day{'s' if customer['recency'] != 1 else ''} ago")
+                output.append(f"    🔄 Transactions: {int(customer['frequency'])} purchase{'s' if customer['frequency'] != 1 else ''}")
+                output.append("")
+                output.append(f"    📊 RFM Score: R[{customer['recency_quartile']}] F[{customer['frequency_quartile']}] M[{customer['monetary_quartile']}]")
+                output.append("")
+
+                # Generate explanation
+                explanation = self._generate_segment_explanation(segment, customer)
+                output.append(f"    ✨ Why {segment}?")
+                for line in explanation:
+                    output.append(f"    {line}")
+
+                if i < len(segment_data['top_customers']):
+                    output.append("")
+
+            output.append("\n" + "━" * 60)
+
+        return '\n'.join(output)
+
+    def _generate_segment_explanation(self, segment: str, customer: Dict) -> list:
+        """Generate business-friendly explanation for why customer is in segment"""
+        explanations = []
+
+        r_q = customer['recency_quartile']
+        f_q = customer['frequency_quartile']
+        m_q = customer['monetary_quartile']
+
+        if segment == 'Champions':
+            explanations.append("• Purchased very recently (top tier recency)")
+            explanations.append("• High purchase frequency (top tier loyalty)")
+            explanations.append("• High total spending (top tier revenue)")
+        elif segment == 'Loyal Customers':
+            explanations.append("• High purchase frequency (top tier loyalty)")
+            if m_q in ['Q3', 'Q4', '3', '2']:  # High monetary
+                explanations.append("• Strong revenue contribution")
+            explanations.append("• Regular customer with consistent orders")
+        elif segment == 'Recent Customers':
+            explanations.append("• Purchased very recently (top tier recency)")
+            explanations.append("• Building purchase history")
+            explanations.append("• Potential for increased engagement")
+        elif segment == 'At Risk':
+            explanations.append("• Haven't purchased recently (needs attention)")
+            explanations.append("• Risk of customer churn")
+            explanations.append("• Recommended: Re-engagement campaign")
+        elif segment == 'Need Attention':
+            explanations.append("• Moderate engagement levels")
+            explanations.append("• Opportunity for improvement")
+            explanations.append("• Recommended: Targeted promotions")
+
+        return explanations
 
     # VISUALIZATION METHODS
 
