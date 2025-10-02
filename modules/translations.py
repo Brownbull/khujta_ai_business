@@ -54,8 +54,10 @@ TRANSLATIONS = {
 
         # Customer Segmentation
         'champions': 'Champions',
+        'high_value_customers': 'High Value Customers',
         'loyal_customers': 'Loyal Customers',
-        'recent_customers': 'Recent Customers',
+        'recent_high_spenders': 'Recent High Spenders',
+        'at_risk_high_value': 'At Risk - High Value',
         'at_risk': 'At Risk',
         'need_attention': 'Need Attention',
         'customer_segmentation': 'Customer/Transaction Segmentation Analysis',
@@ -290,8 +292,10 @@ TRANSLATIONS = {
 
         # Customer Segmentation
         'champions': 'Campeones',
+        'high_value_customers': 'Clientes de Alto Valor',
         'loyal_customers': 'Clientes Leales',
-        'recent_customers': 'Clientes Recientes',
+        'recent_high_spenders': 'Compradores Recientes de Alto Valor',
+        'at_risk_high_value': 'En Riesgo - Alto Valor',
         'at_risk': 'En Riesgo',
         'need_attention': 'Necesitan Atención',
         'customer_segmentation': 'Análisis de Segmentación de Clientes/Transacciones',
@@ -511,8 +515,10 @@ def translate_segment_name(segment: str, lang: str = 'ENG') -> str:
     """Translate segment names"""
     segment_keys = {
         'Champions': 'champions',
+        'High Value Customers': 'high_value_customers',
         'Loyal Customers': 'loyal_customers',
-        'Recent Customers': 'recent_customers',
+        'Recent High Spenders': 'recent_high_spenders',
+        'At Risk - High Value': 'at_risk_high_value',
         'At Risk': 'at_risk',
         'Need Attention': 'need_attention'
     }

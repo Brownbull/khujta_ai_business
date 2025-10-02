@@ -13,7 +13,12 @@ from typing import Dict, List
 import warnings
 warnings.filterwarnings('ignore')
 
+from modules.translations import get_text, translate_segment_name, translate_day_name
 from modules.business_analytics import BusinessAnalyzer
+from modules.logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 
 class AdvancedAnalytics:
@@ -34,7 +39,7 @@ class AdvancedAnalytics:
 
         self.analyzer = analyzer
         self.trend_analysis = None
-        print(f"AdvancedAnalytics initialized for project: {self.analyzer.config['project_name']}")
+        logger.info(f"AdvancedAnalytics initialized for project: {self.analyzer.config['project_name']}")
 
     # CALCULATION METHODS
 
@@ -121,13 +126,17 @@ class AdvancedAnalytics:
 
         return opportunities
 
-    def calculate_customer_segmentation_rfm(self, debug: bool = False) -> Dict:
+    def calculate_customer_segmentation_rfm(self) -> Dict:
         """Perform RFM (Recency, Frequency, Monetary) analysis"""
+        logger.debug("Starting RFM customer segmentation analysis")
+
         if self.analyzer.data is None or self.analyzer.config['customer_col'] not in self.analyzer.data.columns:
+            logger.warning("No customer column available, using transaction pattern segmentation")
             return self._segment_by_transaction_patterns()
 
         # Standard RFM if customer data exists
         analysis_date = pd.Timestamp(self.analyzer.config['analysis_date'])
+        logger.debug(f"Analysis date: {analysis_date}")
 
         rfm = self.analyzer.data.groupby(self.analyzer.config['customer_col']).agg({
             self.analyzer.config['date_col']: lambda x: (analysis_date - x.max()).days, # Recency
@@ -136,6 +145,10 @@ class AdvancedAnalytics:
         })
 
         rfm.columns = ['Recency', 'Frequency', 'Monetary']
+        logger.debug(f"RFM data shape: {rfm.shape}")
+        logger.debug(f"Recency range: {rfm['Recency'].min():.0f} to {rfm['Recency'].max():.0f} days")
+        logger.debug(f"Frequency range: {rfm['Frequency'].min():.0f} to {rfm['Frequency'].max():.0f} transactions")
+        logger.debug(f"Monetary range: {rfm['Monetary'].min():.0f} to {rfm['Monetary'].max():.0f}")
 
         # Create segments using quartiles (or fewer if data has duplicates)
         # Note: For Recency, lower days = better, so we invert the labels
@@ -147,39 +160,72 @@ class AdvancedAnalytics:
                     rfm[f'{col}_Quartile'] = pd.qcut(rfm[col], 4, labels=['S4', 'S3', 'S2', 'S1'])
                 else:
                     rfm[f'{col}_Quartile'] = pd.qcut(rfm[col], 4, labels=['S1', 'S2', 'S3', 'S4'])
-                if debug: print(f"{col} quartiles with labels created successfully.")
-            except ValueError:
+                logger.debug(f"{col} quartiles created with labels successfully")
+            except ValueError as e:
                 # If quartiles fail due to duplicates, use duplicates='drop' without labels
+                logger.warning(f"{col} quartile creation failed (duplicates), using duplicates='drop': {e}")
                 rfm[f'{col}_Quartile'] = pd.qcut(rfm[col], 4, duplicates='drop')
                 # For intervals, we'll handle the inversion in the display logic
-                if debug: print(f"{col} quartiles without labels created successfully.")
 
-        # Define customer segments (handle both string labels and numeric values)
+        # Define customer segments using all 3 RFM dimensions
+        # Priority hierarchy: Monetary > Frequency > Recency
+        # Calculate quartile boundaries once (not per row for performance)
+        r_max = rfm['Recency_Quartile'].max()  # Best recency (lowest days)
+        f_max = rfm['Frequency_Quartile'].max()  # Best frequency (highest transactions)
+        m_max = rfm['Monetary_Quartile'].max()  # Best monetary (highest spending)
+        r_min = rfm['Recency_Quartile'].min()  # Worst recency (highest days)
+
+        # Calculate median for monetary VALUE (not quartile) to identify decent spenders
+        m_median_value = rfm['Monetary'].median()
+
+        logger.debug(f"Segmentation boundaries: R_max={r_max}, F_max={f_max}, M_max={m_max}, R_min={r_min}, M_median_value={m_median_value}")
+
         def segment_customers(row):
-            # Get max values for each quartile column to handle both labeled and numeric quartiles
-            r_max = rfm['Recency_Quartile'].max()
-            f_max = rfm['Frequency_Quartile'].max()
-            r_min = rfm['Recency_Quartile'].min()
+            r = row['Recency_Quartile']
+            f = row['Frequency_Quartile']
+            m = row['Monetary_Quartile']
+            m_value = row['Monetary']  # Actual monetary value for median comparison
 
-            # Check if it's the highest quartile (best)
-            if row['Recency_Quartile'] == r_max and row['Frequency_Quartile'] == f_max:
+            # 1. Champions: Best in all 3 dimensions
+            if m == m_max and f == f_max and r == r_max:
                 return 'Champions'
-            elif row['Frequency_Quartile'] == f_max:
+
+            # 2. High Value Customers: High spenders who are either frequent OR recent (but not both)
+            elif m == m_max and (f == f_max or r == r_max):
+                return 'High Value Customers'
+
+            # 3. Loyal Customers: Frequent buyers (but not high spenders)
+            elif f == f_max:
                 return 'Loyal Customers'
-            elif row['Recency_Quartile'] == r_max:
-                return 'Recent Customers'
-            elif row['Recency_Quartile'] == r_min:
+
+            # 4. Recent High Spenders: Recent + decent spending (but not champions/high value/loyal)
+            elif r == r_max and m_value >= m_median_value:
+                return 'Recent High Spenders'
+
+            # 5. At Risk - High Value: High spenders who haven't purchased recently
+            elif m == m_max and r == r_min:
+                return 'At Risk - High Value'
+
+            # 6. At Risk: Haven't purchased recently (not high spenders)
+            elif r == r_min:
                 return 'At Risk'
+
+            # 7. Need Attention: Everyone else (moderate on all dimensions)
             else:
                 return 'Need Attention'
 
-        rfm['Segment'] = rfm.apply(segment_customers, axis=1)
+        rfm['Segment'] = rfm.apply(segment_customers, axis=1)  # Apply segmentation
+
+        # Log segment distribution
+        segment_counts = rfm['Segment'].value_counts().to_dict()
+        logger.debug(f"Segment distribution: {segment_counts}")
+        logger.info(f"RFM segmentation completed: {len(rfm)} customers across {len(segment_counts)} segments")
 
         # Store RFM data for detailed reports
         self.rfm_data = rfm.copy()
 
         return {
-            'segments': rfm['Segment'].value_counts().to_dict(),
+            'segments': segment_counts,
             'segment_revenue': rfm.groupby('Segment')['Monetary'].sum().to_dict(),
             'total_customers': len(rfm),
             'avg_recency': rfm['Recency'].mean(),
@@ -256,7 +302,6 @@ class AdvancedAnalytics:
 
     def calculate_recommendations(self) -> List[Dict]:
         """Generate recommendations based on analysis"""
-        from modules.translations import get_text
 
         lang = self.analyzer.config.get('language', 'ENG')
         recommendations = []
@@ -328,7 +373,6 @@ class AdvancedAnalytics:
 
     def print_revenue_forecast(self, days_ahead: int = 30) -> str:
         """Format revenue forecast as string"""
-        from modules.translations import get_text
 
         lang = self.analyzer.config.get('language', 'ENG')
         forecast = self.calculate_revenue_forecast(days_ahead)
@@ -355,7 +399,6 @@ class AdvancedAnalytics:
 
     def print_cross_sell_opportunities(self, min_support: float = 0.01, limit: int = 3) -> str:
         """Format cross-sell opportunities as string"""
-        from modules.translations import get_text
 
         lang = self.analyzer.config.get('language', 'ENG')
         opportunities = self.calculate_cross_sell_opportunities(min_support, limit)
@@ -376,7 +419,6 @@ class AdvancedAnalytics:
 
     def print_anomalies(self, limit: int = 3) -> str:
         """Format anomalies as string"""
-        from modules.translations import get_text
 
         lang = self.analyzer.config.get('language', 'ENG')
         anomalies = self.calculate_anomalies(limit)
@@ -393,7 +435,6 @@ class AdvancedAnalytics:
 
     def print_recommendations(self) -> str:
         """Format recommendations as string"""
-        from modules.translations import get_text
 
         lang = self.analyzer.config.get('language', 'ENG')
         recommendations = self.calculate_recommendations()
@@ -411,12 +452,13 @@ class AdvancedAnalytics:
 
         return "\n".join(recmm_str)
 
-    def print_customer_segmentation(self, debug: bool = False) -> str:
+    def print_customer_segmentation(self) -> str:
         """Format customer segmentation as string"""
-        from modules.translations import get_text, translate_segment_name
 
         lang = self.analyzer.config.get('language', 'ENG')
-        rfm_segmentation = self.calculate_customer_segmentation_rfm(debug=debug)
+        rfm_segmentation = self.calculate_customer_segmentation_rfm()
+        
+        logger.info(f"rfm_segmentation: {rfm_segmentation}")
 
         # Format output
         rfm_str = []
@@ -473,7 +515,7 @@ class AdvancedAnalytics:
         detailed_segments = {}
 
         for segment in self.rfm_data['Segment'].unique():
-            segment_customers = self.rfm_data[self.rfm_data['Segment'] == segment].copy()
+            segment_customers = self.rfm_data[self.rfm_data['Segment'] == segment].copy() # Copy to avoid modifying original data
 
             # Sort by composite RFM score (Recency ascending=best is lowest days, Frequency & Monetary descending)
             # Priority: Recency first (most recent), then Frequency, then Monetary
@@ -515,7 +557,6 @@ class AdvancedAnalytics:
 
     def print_detailed_customer_segments(self, top_n: int = 5) -> str:
         """Format detailed customer segmentation as string"""
-        from modules.translations import get_text, translate_segment_name
 
         lang = self.analyzer.config.get('language', 'ENG')
         detailed_segments = self.calculate_detailed_customer_segments(top_n=top_n)
@@ -526,14 +567,16 @@ class AdvancedAnalytics:
         # Segment emoji mapping
         segment_emojis = {
             'Champions': '🏆',
+            'High Value Customers': '💎',
             'Loyal Customers': '🔵',
-            'Recent Customers': '🟢',
+            'Recent High Spenders': '🟢',
+            'At Risk - High Value': '🟠',
             'At Risk': '🔴',
             'Need Attention': '🟡'
         }
 
-        # Segment order for display
-        segment_order = ['Champions', 'Loyal Customers', 'Recent Customers', 'Need Attention', 'At Risk']
+        # Segment order for display (priority: best to worst)
+        segment_order = ['Champions', 'High Value Customers', 'Loyal Customers', 'Recent High Spenders', 'Need Attention', 'At Risk - High Value', 'At Risk']
 
         output = []
         output.append("=" * 60)
@@ -610,7 +653,6 @@ class AdvancedAnalytics:
 
     def _generate_segment_explanation(self, segment: str, customer: Dict, lang: str = 'ENG') -> list:
         """Generate business-friendly explanation for why customer is in segment"""
-        from modules.translations import get_text
 
         explanations = []
 
@@ -619,18 +661,31 @@ class AdvancedAnalytics:
         m_q = customer['monetary_quartile']
 
         if segment == 'Champions':
-            explanations.append(f"• {get_text('exp_purchased_recently', lang)}")
-            explanations.append(f"• {get_text('exp_high_frequency', lang)}")
             explanations.append(f"• {get_text('exp_high_spending', lang)}")
+            explanations.append(f"• {get_text('exp_high_frequency', lang)}")
+            explanations.append(f"• {get_text('exp_purchased_recently', lang)}")
+            explanations.append(f"• {get_text('exp_strong_revenue', lang)}")
+        elif segment == 'High Value Customers':
+            explanations.append(f"• {get_text('exp_high_spending', lang)}")
+            if f_q in ['S4', 'Q4', '4']:
+                explanations.append(f"• {get_text('exp_high_frequency', lang)}")
+            if r_q in ['S4', 'Q4', '4']:
+                explanations.append(f"• {get_text('exp_purchased_recently', lang)}")
+            explanations.append(f"• {get_text('exp_strong_revenue', lang)}")
         elif segment == 'Loyal Customers':
             explanations.append(f"• {get_text('exp_high_frequency', lang)}")
-            if m_q in ['S3', 'S4', 'Q3', 'Q4', '3', '2']:  # High monetary (support both S and Q notation)
-                explanations.append(f"• {get_text('exp_strong_revenue', lang)}")
             explanations.append(f"• {get_text('exp_regular_customer', lang)}")
-        elif segment == 'Recent Customers':
+            if m_q in ['S3', 'S4', 'Q3', 'Q4', '3', '2']:  # High monetary
+                explanations.append(f"• {get_text('exp_strong_revenue', lang)}")
+        elif segment == 'Recent High Spenders':
             explanations.append(f"• {get_text('exp_purchased_recently', lang)}")
-            explanations.append(f"• {get_text('exp_building_history', lang)}")
+            explanations.append(f"• {get_text('exp_strong_revenue', lang)}")
             explanations.append(f"• {get_text('exp_potential_engagement', lang)}")
+        elif segment == 'At Risk - High Value':
+            explanations.append(f"• {get_text('exp_high_spending', lang)} (historically)")
+            explanations.append(f"• {get_text('exp_not_purchased', lang)}")
+            explanations.append(f"• {get_text('exp_churn_risk', lang)} - HIGH PRIORITY")
+            explanations.append(f"• {get_text('exp_reengagement', lang)}")
         elif segment == 'At Risk':
             explanations.append(f"• {get_text('exp_not_purchased', lang)}")
             explanations.append(f"• {get_text('exp_churn_risk', lang)}")
@@ -654,7 +709,6 @@ class AdvancedAnalytics:
         Note:
             To save the figure, use fig.savefig() or a utility function
         """
-        from modules.translations import get_text, translate_day_name
 
         lang = self.analyzer.config.get('language', 'ENG')
 
@@ -719,7 +773,6 @@ class AdvancedAnalytics:
             dow_revenue = dow_revenue.reindex(day_order, fill_value=0)
 
             # Translate day names for display
-            from modules.translations import translate_day_name
             day_labels = [translate_day_name(day, lang) for day in day_order]
 
             colors = ['#D62828' if day in ['Saturday', 'Sunday'] else '#2E86AB' for day in day_order]

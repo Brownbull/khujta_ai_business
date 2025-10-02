@@ -11,6 +11,11 @@ import os
 import warnings
 warnings.filterwarnings('ignore')
 
+from modules.logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger(__name__)
+
 
 class Business:
     """
@@ -47,9 +52,9 @@ class Business:
         # Load data if provided
         if data_source:
             self.load_data(data_source)
-            print(f"Business initialized with data from: {data_source} {self.data.shape if self.data is not None else ''}")
+            logger.info(f"Business initialized with data from: {data_source} {self.data.shape if self.data is not None else ''}")
 
-        print(f"Output directory: {self.out_dir}")
+        logger.info(f"Output directory: {self.out_dir}")
 
     def _default_config(self) -> Dict:
         """Default configuration settings"""

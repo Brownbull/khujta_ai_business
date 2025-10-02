@@ -9,6 +9,10 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from modules.business import Business
+from modules.logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 
 class BusinessAnalyzer(Business):
@@ -32,15 +36,16 @@ class BusinessAnalyzer(Business):
         if self.data is not None:
             self.calculate_all_metrics()
 
-        print(f"BusinessAnalyzer initialized for project: {self.config['project_name']}")
+        logger.info(f"BusinessAnalyzer initialized for project: {self.config['project_name']}")
 
     # METRIC CALCULATION METHODS
     def calculate_all_metrics(self):
         """Calculate all base metrics"""
+        logger.debug("Starting base metrics calculation")
         self.calculate_product_metrics()
         self.calculate_inventory_metrics()
         self.calculate_revenue_metrics()
-        print("✓ All base metrics calculated")
+        logger.info("✓ All base metrics calculated")
 
     def calculate_product_metrics(self):
         """Calculate product-level metrics"""

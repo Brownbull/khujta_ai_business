@@ -13,6 +13,10 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from modules.business_analytics import BusinessAnalyzer
+from modules.logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 # Set style
 plt.style.use('seaborn-v0_8-whitegrid')
@@ -36,7 +40,7 @@ class ExecutiveDashboard:
             raise TypeError("Expected BusinessAnalyzer instance")
 
         self.analyzer = analyzer
-        print(f"Dashboard initialized for project: {self.analyzer.config['project_name']}")
+        logger.info(f"Dashboard initialized for project: {self.analyzer.config['project_name']}")
         self.colors = {
             'primary': '#2E86AB',
             'success': '#52B788',
