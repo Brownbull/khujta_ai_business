@@ -174,6 +174,11 @@ class AdvancedAnalytics:
         f_max = rfm['Frequency_Quartile'].max()  # Best frequency (highest transactions)
         m_max = rfm['Monetary_Quartile'].max()  # Best monetary (highest spending)
         r_min = rfm['Recency_Quartile'].min()  # Worst recency (highest days)
+        logger.debug(f"Best recency (lowest days):{r_max}")
+        logger.debug(f"Best frequency (highest transactions):{f_max}")
+        logger.debug(f"Best monetary (highest spending):{m_max}")
+        logger.debug(f"Worst recency (highest days):{r_min}")
+
 
         # Calculate median for monetary VALUE (not quartile) to identify decent spenders
         m_median_value = rfm['Monetary'].median()
@@ -214,11 +219,22 @@ class AdvancedAnalytics:
             else:
                 return 'Need Attention'
 
+        logger.debug("Applying segmentation logic to all customers...")
         rfm['Segment'] = rfm.apply(segment_customers, axis=1)  # Apply segmentation
 
-        # Log segment distribution
+        # Log segment distribution with details
         segment_counts = rfm['Segment'].value_counts().to_dict()
         logger.debug(f"Segment distribution: {segment_counts}")
+
+        # Log summary statistics per segment
+        for segment in ['Champions', 'High Value Customers', 'Loyal Customers', 'Recent High Spenders', 'At Risk - High Value', 'At Risk', 'Need Attention']:
+            if segment in segment_counts:
+                seg_data = rfm[rfm['Segment'] == segment]
+                logger.debug(f"{segment}: {segment_counts[segment]} customers, "
+                           f"Avg Monetary: {seg_data['Monetary'].mean():.0f}, "
+                           f"Avg Frequency: {seg_data['Frequency'].mean():.1f}, "
+                           f"Avg Recency: {seg_data['Recency'].mean():.1f} days")
+
         logger.info(f"RFM segmentation completed: {len(rfm)} customers across {len(segment_counts)} segments")
 
         # Store RFM data for detailed reports

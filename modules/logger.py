@@ -77,6 +77,11 @@ def setup_logging(log_level: str = 'INFO', config: Optional[Dict] = None) -> str
         file_handler.setFormatter(file_format)
         root_logger.addHandler(file_handler)
 
+        # Suppress noisy third-party library logs
+        logging.getLogger('matplotlib').setLevel(logging.WARNING)
+        logging.getLogger('PIL').setLevel(logging.WARNING)
+        logging.getLogger('urllib3').setLevel(logging.WARNING)
+
         # Print confirmation to console
         print(f"📝 Logging [{log_level}] to: {log_file_path}")
 
