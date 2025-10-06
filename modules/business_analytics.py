@@ -52,6 +52,7 @@ class BusinessAnalyzer(Business):
         if self.data is None:
             return
 
+        logger.debug("Calculating product metrics...")
         self.product_analysis = self.data.groupby(self.config['product_col']).agg({
             self.config['description_col']: 'first', # Use first description
             self.config['revenue_col']: 'sum', # Total revenue
@@ -68,12 +69,14 @@ class BusinessAnalyzer(Business):
         threshold_idx = int(len(self.product_analysis) * self.config['top_products_threshold']) # Index for top products
         self.product_analysis['is_top_product'] = False # Initialize column
         self.product_analysis.iloc[:threshold_idx, self.product_analysis.columns.get_loc('is_top_product')] = True # Set top products to True
+        logger.debug(f"Product metrics: {len(self.product_analysis)} products, {threshold_idx} top products")
 
     def calculate_inventory_metrics(self):
         """Calculate inventory health metrics"""
         if self.data is None:
             return
 
+        logger.debug("Calculating inventory metrics...")
         last_sale = self.data.groupby(self.config['product_col']).agg({
             self.config['date_col']: 'max', # Last sale date
             self.config['description_col']: 'first' # Product description
@@ -90,12 +93,15 @@ class BusinessAnalyzer(Business):
         )
 
         self.inventory = last_sale
+        status_counts = last_sale['status'].value_counts().to_dict()
+        logger.debug(f"Inventory status: {status_counts}")
 
     def calculate_revenue_metrics(self):
         """Calculate revenue-based metrics"""
         if self.data is None:
             return
 
+        logger.debug("Calculating revenue metrics...")
         date_range = self.get_date_range()
 
         self.revenue_metrics = {
@@ -105,11 +111,12 @@ class BusinessAnalyzer(Business):
             'total_products': self.data[self.config['product_col']].nunique(), # Unique products sold
             'date_range': date_range # Date range {start, end}
         }
+        logger.debug(f"Revenue metrics: {self.revenue_metrics['total_revenue']:.0f} total, {self.revenue_metrics['total_transactions']} transactions")
 
     def calculate_kpis(self) -> Dict:
         """Calculate key performance indicators"""
         if self.revenue_metrics is None:
-            print("@calculate_kpis: Revenue metrics not calculated yet.")
+            logger.warning("Revenue metrics not calculated yet")
             return {}
 
         date_range = self.revenue_metrics['date_range']
@@ -136,6 +143,7 @@ class BusinessAnalyzer(Business):
             'mid_date': mid_date
         }
 
+        logger.debug(f"KPIs calculated: Growth {growth_rate:.1f}%, {self.revenue_metrics['total_products']} products")
         return self.kpis
 
     def calculate_alerts(self) -> Dict:

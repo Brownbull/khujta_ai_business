@@ -48,6 +48,7 @@ class AdvancedAnalytics:
         if self.analyzer.data is None:
             return {}
 
+        logger.debug(f"Calculating revenue forecast for {days_ahead} days ahead...")
         # Group by date
         daily_data = self.analyzer.data.groupby(pd.Grouper(key=self.analyzer.config['date_col'], freq='D')) # Group by date
         daily_revenue = daily_data[self.analyzer.config['revenue_col']].sum() # Sum revenue per day
@@ -68,6 +69,9 @@ class AdvancedAnalytics:
         confidence_low = confidence_low_daily * days_ahead # Total lower bound
         confidence_high = confidence_high_daily * days_ahead # Total upper bound
 
+        trend = 'increasing' if ma_7.iloc[-1] > ma_30.iloc[-1] else 'decreasing'
+        logger.debug(f"Forecast: {forecast_total:.0f} total ({last_avg_daily:.0f}/day), trend: {trend}")
+
         return {
             'forecast_daily_avg': last_avg_daily,
             'daily_std_dev': std_dev,
@@ -75,13 +79,15 @@ class AdvancedAnalytics:
             'forecast_total': forecast_total,
             'confidence_interval_total': (max(0, confidence_low), confidence_high),
             'days_ahead': days_ahead,
-            'trend': 'increasing' if ma_7.iloc[-1] > ma_30.iloc[-1] else 'decreasing'
+            'trend': trend
         }
 
     def calculate_cross_sell_opportunities(self, min_support: float = 0.01, limit: int = 3) -> List[Dict]:
         """Find products frequently bought together"""
         if self.analyzer.data is None:
             return []
+
+        logger.debug(f"Calculating cross-sell opportunities (min_support={min_support}, limit={limit})...")
 
         # Group products by transaction
         transaction_products = self.analyzer.data.groupby(self.analyzer.config['transaction_col'])[

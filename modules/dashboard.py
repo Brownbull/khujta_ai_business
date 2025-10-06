@@ -335,6 +335,7 @@ class ExecutiveDashboard:
         from modules.translations import get_text
         lang = self.analyzer.config.get('language', 'ENG')
 
+        logger.debug(f"Creating full dashboard ({figsize[0]}x{figsize[1]})...")
         fig = plt.figure(figsize=figsize, facecolor='white')
         gs = GridSpec(3, 4, figure=fig, hspace=0.3, wspace=0.3)
 
@@ -376,6 +377,7 @@ class ExecutiveDashboard:
 
         # Store the figure in the instance for later use
         self.dashboard = fig
+        logger.info("Full dashboard created successfully")
 
         return fig
     
