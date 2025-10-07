@@ -18,6 +18,19 @@ venv\Scripts\activate  # Windows
 ```
 
 ### Running Analysis
+
+**NEW Waterfall Pipeline (Recommended):**
+```bash
+# Run waterfall pipeline with examples
+python waterfall_example.py
+
+# Or import and use programmatically
+python
+>>> from scripts.main_driver import run_minimal_pipeline
+>>> results = run_minimal_pipeline('data/auto_partes/auto_partes_transactions.csv', 'my_project')
+```
+
+**Legacy Approach:**
 ```bash
 # Run the complete workflow with all analytics
 python quick_reference.py
@@ -34,8 +47,67 @@ jupyter notebook
 
 ## Code Architecture
 
-### Core Module System
-The codebase follows a modular architecture with three primary analytics engines:
+### NEW: Waterfall Pipeline Architecture (Recommended)
+
+The project now includes a **waterfall pipeline architecture** (`scripts/` folder) that provides a clean, step-by-step data flow from raw input to insights:
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  1. INPUT → 2. PREPROCESSING → 3. FILTERS → 4. ATTRIBUTES → 5. SCORES  │
+└────────────────────────────────────────────────────────────┘
+```
+
+**Waterfall Pipeline Modules** (`scripts/`):
+
+1. **main_driver.py** - Pipeline orchestrator
+   - Coordinates entire waterfall flow
+   - Manages pipeline state and metadata
+   - Provides `run_pipeline()` and `run_minimal_pipeline()` functions
+
+2. **preprocessing.py** - Data validation and cleaning
+   - Validates required columns
+   - Removes duplicates and handles missing values
+   - Parses dates and standardizes data types
+   - Detects outliers (non-destructive)
+
+3. **filters.py** - Row-level calculations
+   - Time extraction (hour, weekday, month, etc.)
+   - Profit margin and price per unit
+   - Time of day classification
+   - Weekend flags and transaction categorization
+   - Custom filter registration
+
+4. **attributes.py** - Aggregated metrics
+   - Product, revenue, inventory, time metrics
+   - KPIs and Pareto analysis
+   - Forecasting and cross-sell opportunities
+   - RFM customer segmentation
+   - Anomaly detection
+
+5. **score.py** - Scoring and insights
+   - Business health scoring (0-100)
+   - Alert generation (critical/warning/success)
+   - Actionable recommendations
+   - Product and inventory scoring
+
+**Quick Start with Waterfall Pipeline:**
+```python
+from scripts.main_driver import run_minimal_pipeline
+
+# One-line execution
+results = run_minimal_pipeline(
+    file_path='data/auto_partes/auto_partes_transactions.csv',
+    project_name='my_analysis'
+)
+```
+
+See `waterfall_example.py` for 6 detailed usage examples.
+
+---
+
+### Legacy Module System (Still Supported)
+
+The original modular architecture remains available in `modules/`:
 
 **1. BusinessAnalyzer** (`modules/business_analytics.py`)
 - Main orchestrator for all analytics operations

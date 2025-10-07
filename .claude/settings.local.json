@@ -3,7 +3,9 @@
     "allow": [
       "Bash(cat:*)",
       "Bash(python:*)",
-      "Bash(jupyter nbconvert:*)"
+      "Bash(jupyter nbconvert:*)",
+      "Bash(mkdir:*)",
+      "Bash(timeout 120 jupyter nbconvert:*)"
     ],
     "deny": [],
     "ask": []

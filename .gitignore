@@ -1,5 +1,8 @@
 venv/
+legacy/
 archive/
+reference/
+waterfall/
 *.log
 *.tmp
 .DS_Store
