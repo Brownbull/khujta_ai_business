@@ -59,7 +59,7 @@ def setup_logging(log_level: str = 'INFO', config: Optional[Dict] = None) -> str
 
     # File handler - automatically create if config is provided
     log_file_path = None
-    if config and 'client' in config and 'model' in config:
+    if config and 'client' in config:
         # Create logs directory if it doesn't exist
         logs_dir = 'logs'
         os.makedirs(logs_dir, exist_ok=True)
@@ -68,8 +68,8 @@ def setup_logging(log_level: str = 'INFO', config: Optional[Dict] = None) -> str
         now = datetime.now()
         timestamp = now.strftime('%Y%m%d_%H%M%S')
         client = config['client'].replace(" ", "")
-        model = config['model'].replace(" ", "")
-        log_filename = f"{client}_{model}_{timestamp}.log"
+        run_id = f"{client}_{timestamp}"
+        log_filename = run_id + f".log"
         log_file_path = os.path.join(logs_dir, log_filename)
 
         # Create file handler - only log to file, not console
@@ -84,7 +84,7 @@ def setup_logging(log_level: str = 'INFO', config: Optional[Dict] = None) -> str
         logging.getLogger('urllib3').setLevel(logging.WARNING)
 
         # Print confirmation to console
-        print(f"📝 Logging [{log_level}] to: {log_file_path}")
+        print(f"📝 Run instance ID: {run_id} - Logging [{log_level}] to: {log_file_path}")
 
     return log_file_path
 
