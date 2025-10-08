@@ -11,7 +11,7 @@ def is_groupby(f):
         f = getsource(f)
     f_txt = f.lower()
     gby_keywords = ['np.vectorize','np.where','#gby',
-        '.sum','.max','.min','.unique','.nunique','.mean','.median','.percentile',
+        '.sum','.max','.min','.unique','.nunique','.mean','.median','.percentile','np.first','nplast',
         '.nansum','.nanmax','.nanmin','flag1','rows_out','agg_out','#agg','.count_nonzero']
     return True if any(word in f_txt for word in gby_keywords) else False
 
@@ -67,21 +67,21 @@ def calc_datasets(data_in: pd.DataFrame, cfg_model: Dict) -> Tuple[pd.DataFrame,
                     args_data.append(data_in[arg].values)
                     logger.debug("{}@data_in ".format(arg))
 
-                elif arg in data_out.keys(): # input from data_out only
+                elif arg in agg_results.keys(): # input from agg_results only
                     out_flg = True
-                    args_data.append(data_out[arg])
-                    logger.debug("{}@data_out ".format(arg))
+                    args_data.append(agg_results[arg])
+                    logger.debug("{}@agg_results ".format(arg))
                 
                 else:
-                    # Argument not found in either data_in or data_out
-                    logger.error(f"Feature '{feature}': argument '{arg}' not found in data_in or data_out")
+                    # Argument not found in either data_in or agg_results
+                    logger.error(f"Feature '{feature}': argument '{arg}' not found in data_in or agg_results")
                     continue  # or raise an exception
             # Validate all required arguments were found
             if len(args_data) != len(arg_list):
                 logger.error(f"Feature '{feature}': expected {len(arg_list)} arguments, found {len(args_data)}")
                 logger.error(f"  Expected: {arg_list}")
                 logger.error(f"  Available in data_in: {list(data_in.columns)}")
-                logger.error(f"  Available in data_out: {list(data_out.keys())}")
+                logger.error(f"  Available in agg_results: {list(agg_results.keys())}")
                 continue  # Skip this feature
             
             # Determine processing type and execute
@@ -100,7 +100,7 @@ def calc_datasets(data_in: pd.DataFrame, cfg_model: Dict) -> Tuple[pd.DataFrame,
                 if in_flg and not out_flg:
                     # Arguments from data_in only - use groupby aggregation
                     grouped = data_in.groupby(cfg_model['group_by'])
-                    agg_results[feature] = grouped.apply(lambda g: func(*[g[arg] for arg in arg_list]))
+                    agg_results[feature] = grouped.apply(lambda g: func(*[g[arg] for arg in arg_list]), include_groups=False)
 
                 elif out_flg:
                     # Arguments include data_out - use already computed aggregates
