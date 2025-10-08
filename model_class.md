@@ -1,5 +1,5 @@
 ## Product Vision
-Set of python scripts that define a ModelDriver class which is capable of execute a "model" in a given dataset, and get results according to configuration.
+Set of python scripts that define a ModelClass class which is capable of execute a "model" in a given dataset, and get results according to configuration.
 In order to develop this "model" or set of filters, and attributes the class is prepared to load the functions in 2 different ways: from functiones defined in code during the script execution or getting them from a registry. The workflow for a given developer using this tool should be the following:
 1. Get data.
 2. Define filters and attributes using that data.
@@ -20,6 +20,10 @@ In order to get a better idea of this approach do an analysis on the architectur
 - "C:\Projects\play\khujta_ai_business\reference\personalbrownbull-vecmodels-08af286a6a71\personalbrownbull-vecmodels-08af286a6a71\prpf1_pa\A00_prpf1_pa.ipynb"
 - "C:\Projects\play\khujta_ai_business\reference\personalbrownbull-vecmodels-08af286a6a71\personalbrownbull-vecmodels-08af286a6a71\prpf1_pp\A00_prpf1_pp.ipynb"
 - "C:\Projects\play\khujta_ai_business\reference\personalbrownbull-vecmodels-08af286a6a71\personalbrownbull-vecmodels-08af286a6a71\prpf1_pt\A00_prpf1_pt.ipynb"
+
+## Important 
+- the signature definition of filters and attributes should follow the one used in the notebooks, so the arguments are named as the input column, filters or attributes themselves.
+- some filter calculation could depend on an attribute value, so the calling of these following the execution order should be in the same loopin which 2 dataframes are being updates, one on input level where filters can be added, and the second on aggregation by groupby key where attribute columns are being added.
 
 ## Observations from last feature engine refactoring
 ### Missing
