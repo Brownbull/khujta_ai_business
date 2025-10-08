@@ -150,6 +150,15 @@ class ModelExecutor:
                     f"No fidx_config in user_config, using default: {fidx_config}"
                 )
 
+            # Pass available_cols from preprocessing to cfg_model
+            if 'available_cols' in ctx.user_config:
+                cfg_model['available_cols'] = ctx.user_config['available_cols']
+                logger.debug(f"Available columns: {cfg_model['available_cols']}")
+
+            if 'missing_cols' in ctx.user_config:
+                cfg_model['missing_cols'] = ctx.user_config['missing_cols']
+                logger.debug(f"Missing columns: {cfg_model['missing_cols']}")
+
             # Resolve dependencies
             logger.debug(f"Resolving dependencies for {self.model_name}")
             cfg_model = get_dependencies(

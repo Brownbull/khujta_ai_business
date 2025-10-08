@@ -24,9 +24,15 @@ def fetch_feature(model, feature, cfg_model):
 
 def get_feat_in_cols(rec_cnt, cfg_model, feat_idx, model, feature, input, exec_seq):
     logger.debug("{} feature: {}".format(feature, rec_cnt))
+
+    if feature in cfg_model.get('available_cols', []):
+        if feature not in input:
+            input.append(feature) # Add available column to input list
+            logger.info("Added available column: {} to input list".format(feature))
+        return input, exec_seq
     
     # Base case: if feature is not defined, fetch or add to input
-    if feature not in cfg_model['features']:
+    elif feature not in cfg_model['features']:
         if feature in feat_idx:
             cfg_model['features'][feature] = fetch_feature(model, feature, cfg_model) # Fetch and store the feature definition
             logger.info("Fetched feature: {} from model: {}".format(feature, model))

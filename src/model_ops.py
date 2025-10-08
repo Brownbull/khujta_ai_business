@@ -42,6 +42,10 @@ def load_feature_funcs(data_in: pd.DataFrame, cfg_model: Dict) -> pd.DataFrame:
     return cfg_model
                     
 def calc_datasets(data_in: pd.DataFrame, cfg_model: Dict) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    if cfg_model['missing_cols']:
+        cfg_model['exec_seq'] = cfg_model['missing_cols'] + cfg_model['exec_seq'] # Ensure all missing cols are included
+        logger.warning(f"calc_datasets - missing_cols added to exec_seq: {cfg_model['missing_cols']}")
+    
     cfg_model = load_feature_funcs(data_in, cfg_model) # Ensure feature functions are loaded
     cfg_model['exec_fltrs'] = []
     cfg_model['exec_attrs'] = []
@@ -93,7 +97,8 @@ def calc_datasets(data_in: pd.DataFrame, cfg_model: Dict) -> Tuple[pd.DataFrame,
                 
             else:
                 # Aggregated attribute
-                logger.info("@calc_datasets - call ATTR args({})= f(*args_data): {}".format(len(arg_list), args_data))
+                logger.info("@calc_datasets - call ATTR args({})".format(len(arg_list)))
+                logger.debug("@calc_datasets - *args_data: {}".format(args_data))
                 cfg_model['exec_attrs'].append(feature)
                 
                 # Apply function to grouped data

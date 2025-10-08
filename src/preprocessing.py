@@ -23,17 +23,19 @@ def dtype_cols(data: pd.DataFrame, config: Dict) -> pd.DataFrame:
 
 
 def map_cols(data: pd.DataFrame, config: Dict) -> pd.DataFrame:
+    available_cols = []
     missing_cols = []
     
     for key, value in config['column_mappings'].items():
         if value in data.columns:
+            available_cols.append(key)
             data = data.rename(columns={value: key})
             logger.info(f"Mapped column '{value}' to '{key}'")
         else:
-            missing_cols.append(value)
-            logger.debug(f"Column '{value}' not found in data")
+            missing_cols.append(key)
+            logger.debug(f"Column '{key}'; {value} not found in data")
             
-    return data, missing_cols
+    return data, missing_cols, available_cols
 
 def check_dt_range(min_dt, max_dt, analysis_dt):
     logger.info(f"Data date range: {min_dt.date()} to {max_dt.date()}")
@@ -61,11 +63,11 @@ def load_data(data_source: str):
     return data
 
 def preprocess_data(data: pd.DataFrame, config: Dict) -> pd.DataFrame:
-    data, missing_cols = map_cols(data, config)
-    if 'in_dt' in missing_cols:
-        logger.error(f"Missing columns in data: {missing_cols}")
-        raise ValueError(f"Missing columns in data: {missing_cols}")
-    
+    data, config['missing_cols'], config['available_cols'] = map_cols(data, config)
+    if 'in_dt' in config['missing_cols']:
+        logger.error(f"Missing columns in data: {config['missing_cols']}")
+        raise ValueError(f"Missing columns in data: {config['missing_cols']}")
+
     # Date conversion
     data['in_dt'] = pd.to_datetime( data['in_dt'], errors='coerce')
         
@@ -87,6 +89,6 @@ def preprocess_data(data: pd.DataFrame, config: Dict) -> pd.DataFrame:
     logger.info(f"Added analysis_dt column: {analysis_dt.date()}")
 
     # Drop rows with NaT in date column
-    return data.dropna(subset=['in_dt']).reset_index(drop=True)
+    return data.dropna(subset=['in_dt']).reset_index(drop=True), config
 
 
