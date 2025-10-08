@@ -44,7 +44,7 @@ def load_feature_funcs(data_in: pd.DataFrame, cfg_model: Dict) -> pd.DataFrame:
 def calc_datasets(data_in: pd.DataFrame, cfg_model: Dict) -> Tuple[pd.DataFrame, pd.DataFrame]:
     if cfg_model['missing_cols']:
         cfg_model['exec_seq'] = cfg_model['missing_cols'] + cfg_model['exec_seq'] # Ensure all missing cols are included
-        logger.warning(f"calc_datasets - missing_cols added to exec_seq: {cfg_model['missing_cols']}")
+        logger.warning(f"missing_cols added to exec_seq: {cfg_model['missing_cols']}")
     
     cfg_model = load_feature_funcs(data_in, cfg_model) # Ensure feature functions are loaded
     cfg_model['exec_fltrs'] = []
@@ -54,7 +54,7 @@ def calc_datasets(data_in: pd.DataFrame, cfg_model: Dict) -> Tuple[pd.DataFrame,
     
     for feature in cfg_model['exec_seq']: # Follow execution sequence
         if feature not in data_in.columns: # Skip if feature already in input data
-            logger.info("@calc_datasets - feature: {}".format(feature))
+            logger.info("feature: {}".format(feature))
             
             # Prepare function inputs
             args_data = []
@@ -69,17 +69,18 @@ def calc_datasets(data_in: pd.DataFrame, cfg_model: Dict) -> Tuple[pd.DataFrame,
                 if arg in data_in.columns: # input from data_in only
                     in_flg = True
                     args_data.append(data_in[arg].values)
-                    logger.debug("{}@data_in ".format(arg))
+                    logger.debug("args_data - Loaded {} @data_in ".format(arg))
 
                 elif arg in agg_results.keys(): # input from agg_results only
                     out_flg = True
                     args_data.append(agg_results[arg])
-                    logger.debug("{}@agg_results ".format(arg))
+                    logger.debug("args_data - Loaded {} @agg_results : {}".format(arg, agg_results[arg]))
                 
                 else:
                     # Argument not found in either data_in or agg_results
                     logger.error(f"Feature '{feature}': argument '{arg}' not found in data_in or agg_results")
                     continue  # or raise an exception
+                
             # Validate all required arguments were found
             if len(args_data) != len(arg_list):
                 logger.error(f"Feature '{feature}': expected {len(arg_list)} arguments, found {len(args_data)}")
@@ -87,29 +88,35 @@ def calc_datasets(data_in: pd.DataFrame, cfg_model: Dict) -> Tuple[pd.DataFrame,
                 logger.error(f"  Available in data_in: {list(data_in.columns)}")
                 logger.error(f"  Available in agg_results: {list(agg_results.keys())}")
                 continue  # Skip this feature
-            
+                        
             # Determine processing type and execute
             if in_flg and not out_flg and not groupby_flg: # input from data only and no Agg present -> output on data level
                 # Row-level filter
-                logger.info("@calc_datasets - call FLTR {} with args({}) - flags {} {} {}".format(feature, len(arg_list), in_flg, out_flg, groupby_flg))
+                logger.info("call FLTR {} with args({}) - flags {} {} {}".format(feature, len(arg_list), in_flg, out_flg, groupby_flg))
                 cfg_model['exec_fltrs'].append(feature)
                 data_in[feature] = np.vectorize(func)(*args_data)
                 
             else:
                 # Aggregated attribute
-                logger.info("@calc_datasets - call ATTR args({})".format(len(arg_list)))
-                logger.debug("@calc_datasets - *args_data: {}".format(args_data))
+                logger.info("call ATTR args({})".format(len(arg_list)))
+                logger.debug("*args_data: \n{}".format(args_data))
                 cfg_model['exec_attrs'].append(feature)
                 
                 # Apply function to grouped data
                 if in_flg and not out_flg:
                     # Arguments from data_in only - use groupby aggregation
+                    logger.info("call ATTR with groupby")
                     grouped = data_in.groupby(cfg_model['group_by'])
-                    agg_results[feature] = grouped.apply(lambda g: func(*[g[arg] for arg in arg_list]), include_groups=False)
+                    result = grouped.apply(lambda g: func(*[g[arg] for arg in arg_list]), include_groups=False)
+                    # result.name = feature  # Explicitly set the name to the feature name
+                    agg_results[feature] = result
 
                 elif out_flg:
+                    logger.info("call ATTR with agg_results")
                     # Arguments include data_out - use already computed aggregates
                     agg_results[feature] = func(*args_data)
+                    
+                logger.debug("ATTR {} result: \n{}".format(feature, agg_results[feature]))
                 
     # At the end, combine all aggregated results:
     if agg_results:
