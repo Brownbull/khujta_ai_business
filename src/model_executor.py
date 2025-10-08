@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional, List
 from src.logger import get_logger
 from src.gabeda_context import GabedaContext
 from src.fidx import get_dependencies
-from src.modeling import calc_datasets
+from src.model_ops import calc_datasets
 
 logger = get_logger(__name__)
 
