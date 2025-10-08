@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 from typing import Dict
 from src.logger import get_logger
 
@@ -42,6 +43,22 @@ def check_dt_range(min_dt, max_dt, analysis_dt):
         logger.warning(f"⚠️⚠️⚠️ Warning: Analysis date {analysis_dt.date()} is before data range. ⚠️⚠️⚠️")
     if analysis_dt > max_dt + pd.Timedelta(days=30):
         logger.warning(f"⚠️⚠️⚠️ Warning: Analysis date {analysis_dt.date()} is significantly after data range. ⚠️⚠️⚠️")
+        
+def load_data(data_source: str):
+    logger.info(f"Loading data from: {data_source}")
+    """Load data from file or DataFrame"""
+    if isinstance(data_source, pd.DataFrame):
+        data = data_source
+    elif data_source.endswith('.csv'):
+        data = pd.read_csv(data_source)
+    elif data_source.endswith(('.xlsx', '.xls')):
+        data = pd.read_excel(data_source)
+    else:
+        raise ValueError(f"Unsupported data source type: {data_source}")
+
+    logger.info(f"Data loaded with shape: {data.shape if data is not None else ''}")
+
+    return data
 
 def preprocess_data(data: pd.DataFrame, config: Dict) -> pd.DataFrame:
     data, missing_cols = map_cols(data, config)
@@ -67,4 +84,5 @@ def preprocess_data(data: pd.DataFrame, config: Dict) -> pd.DataFrame:
     
     # Drop rows with NaT in date column
     return data.dropna(subset=['in_dt']).reset_index(drop=True)
+
 
