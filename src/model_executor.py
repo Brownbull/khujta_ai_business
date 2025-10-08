@@ -145,7 +145,7 @@ class ModelExecutor:
             fidx_config = ctx.user_config.get('fidx_config')
             if fidx_config is None:
                 # Default to local feature store
-                fidx_config = {'type': 'local', 'path': 'feature_store'}
+                fidx_config = {'type': 'local', 'path': 'feature_index'}
                 logger.warning(
                     f"No fidx_config in user_config, using default: {fidx_config}"
                 )

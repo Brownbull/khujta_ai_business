@@ -7,7 +7,7 @@ def fetch_feature(model, feature, cfg_model):
     import json
 
     # Load feature definition from local filesystem
-    local_fs = 'feature_store'
+    local_fs = 'feature_index'
     feat_path = '{}/{}/{}'.format(local_fs, model, feature)
     feature_path = '{}/{}.py'.format(feat_path, feature)
     feat_meta = '{}/metadata.json'.format(feat_path, feature)
@@ -82,6 +82,5 @@ def get_dependencies(cfg_fidx, model, cfg_model, output_cols):
 
     cfg_model['in_cols'] = in_cols
     cfg_model['exec_seq'] = exec_seq
-    cfg_model['out_cols'] = output_cols
 
     return cfg_model

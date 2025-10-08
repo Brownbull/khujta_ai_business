@@ -81,7 +81,11 @@ def preprocess_data(data: pd.DataFrame, config: Dict) -> pd.DataFrame:
     
     # Convert column types
     data = dtype_cols(data, config)
-    
+
+    # Add analysis_dt as a column for date-based calculations
+    data['analysis_dt'] = analysis_dt.date()
+    logger.info(f"Added analysis_dt column: {analysis_dt.date()}")
+
     # Drop rows with NaT in date column
     return data.dropna(subset=['in_dt']).reset_index(drop=True)
 

@@ -10,9 +10,9 @@ def is_groupby(f):
         from inspect import getsource
         f = getsource(f)
     f_txt = f.lower()
-    gby_keywords = ['np.vectorize','np.where','#gby',
-        '.sum','.max','.min','.unique','.nunique','.mean','.median','.percentile','np.first','nplast',
-        '.nansum','.nanmax','.nanmin','flag1','rows_out','agg_out','#agg','.count_nonzero']
+    gby_keywords = ['np.vectorize(','np.where(','#gby',
+        '.sum(','.max(','.min(','.unique(','.nunique(','.mean(','.median(','.percentile(',
+        '.nansum(','np.nanmax(','np.nanmin(','flag1','rows_out','agg_out','#agg','.count_nonzero(']
     return True if any(word in f_txt for word in gby_keywords) else False
 
 def load_feature_funcs(data_in: pd.DataFrame, cfg_model: Dict) -> pd.DataFrame:
@@ -87,13 +87,13 @@ def calc_datasets(data_in: pd.DataFrame, cfg_model: Dict) -> Tuple[pd.DataFrame,
             # Determine processing type and execute
             if in_flg and not out_flg and not groupby_flg: # input from data only and no Agg present -> output on data level
                 # Row-level filter
-                logger.debug("@calc_datasets - call FLTR {} with args({}) - flags {} {} {}".format(feature, len(arg_list), in_flg, out_flg, groupby_flg))
+                logger.info("@calc_datasets - call FLTR {} with args({}) - flags {} {} {}".format(feature, len(arg_list), in_flg, out_flg, groupby_flg))
                 cfg_model['exec_fltrs'].append(feature)
                 data_in[feature] = np.vectorize(func)(*args_data)
                 
             else:
                 # Aggregated attribute
-                logger.debug("@calc_datasets - call ATTR args({})= f(*args_data): {}".format(len(arg_list), args_data))
+                logger.info("@calc_datasets - call ATTR args({})= f(*args_data): {}".format(len(arg_list), args_data))
                 cfg_model['exec_attrs'].append(feature)
                 
                 # Apply function to grouped data
